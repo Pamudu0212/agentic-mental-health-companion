@@ -20,8 +20,8 @@ from .models import Interaction
 from .schemas import ChatRequest, ChatResponse
 from .orchestrator import run_pipeline
 from .agents.mood import _pipe, detect_mood  # warm-up + quick label
-from .agents.safety import detect_crisis
-from .prompts import ENCOURAGEMENT_SYSTEM, CRISIS_MESSAGE
+from .agents.safety import detect_crisis     # returns "none" | "self_harm" | "other_harm"
+from .prompts import ENCOURAGEMENT_SYSTEM, CRISIS_MESSAGE_SELF, CRISIS_MESSAGE_OTHERS
 
 # -----------------------------------------------------------------------------
 # FastAPI app
@@ -34,6 +34,11 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5175",
         "http://127.0.0.1:5175",
+        # add more if you use a different dev port:
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:5178",
+        "http://127.0.0.1:5178",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -135,8 +140,8 @@ async def chat(body: ChatRequest, db: Session = Depends(get_db)):
     user_id = body.user_id or "anon"
     history = fetch_history_as_messages(db, user_id, limit=8)
 
-    # Run the agent pipeline (you can pass history to your LLM prompts inside)
-    result = await run_pipeline(body.user_text, history=history)  # updated signature
+    # Run the agent pipeline (this handles crisis internally too)
+    result = await run_pipeline(body.user_text, history=history)
 
     # Persist minimal interaction record
     record = Interaction(
@@ -161,16 +166,20 @@ async def chat_stream(body: ChatRequest, db: Session = Depends(get_db)):
     user_id = body.user_id or "anon"
 
     # Safety short-circuit using only the new user text
-    if detect_crisis(body.user_text):
+    crisis_type = detect_crisis(body.user_text)  # "none" | "self_harm" | "other_harm"
+    if crisis_type != "none":
+        crisis_message = CRISIS_MESSAGE_SELF if crisis_type == "self_harm" else CRISIS_MESSAGE_OTHERS
+
         async def crisis_gen():
-            yield CRISIS_MESSAGE
+            yield crisis_message
+
         # persist crisis response
         db.add(Interaction(
             user_id=user_id,
             user_text=body.user_text,
             detected_mood="unknown",
             chosen_strategy="",
-            encouragement=CRISIS_MESSAGE,
+            encouragement=crisis_message,
             safety_flag="true",
         ))
         db.commit()

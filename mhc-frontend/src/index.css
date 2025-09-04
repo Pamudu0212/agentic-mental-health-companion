@@ -1,5 +1,10 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* src/index.css */
+@import "tailwindcss";
 
-html, body, #root { height: 100%; }
+/* Optional: gentle defaults */
+:root {
+  color-scheme: light;
+}
+html, body, #root {
+  height: 100%;
+}
