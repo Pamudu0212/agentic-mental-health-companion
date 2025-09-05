@@ -15,22 +15,35 @@ function useUserId() {
 }
 
 function Insights({ latest }) {
-  const { mood, strategy, crisis_detected, analyzing } = latest || {};
+  const { mood, strategy, analyzing, safety } = latest || {};
+  const level = safety?.level ?? "safe";
+
+  const labelMap = {
+    safe: "Safe",
+    watch: "Watch",
+    crisis_self: "Crisis (Self-harm)",
+    crisis_others: "Crisis (Others)",
+  };
+  const chipClasses = {
+    safe: "bg-emerald-50 text-emerald-700",
+    watch: "bg-amber-50 text-amber-700",
+    crisis_self: "bg-rose-100 text-rose-700",
+    crisis_others: "bg-rose-100 text-rose-700",
+  };
+
   return (
     <aside className="h-full">
       <div className="h-full rounded-3xl border border-emerald-100/60 bg-white/80 backdrop-blur-md shadow-md p-5 flex flex-col">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-slate-800">Insights</h2>
-          {crisis_detected ? (
-            <span className="px-2 py-1 text-xs rounded-full bg-rose-100 text-rose-700">
-              Crisis detected
-            </span>
-          ) : (
-            <span className="px-2 py-1 text-xs rounded-full bg-emerald-50 text-emerald-700">
-              Safe
-            </span>
-          )}
+          <span className={`px-2 py-1 text-xs rounded-full ${chipClasses[level]}`}>
+            {labelMap[level] ?? "Safe"}
+          </span>
         </div>
+
+        {!!safety?.reason && (
+          <p className="mt-2 text-xs text-slate-500">{safety.reason}</p>
+        )}
 
         <div className="mt-4 space-y-4 overflow-auto pr-1">
           <section>
@@ -56,7 +69,7 @@ function Insights({ latest }) {
             </p>
           </section>
 
-        <p className="text-xs text-slate-500 mt-auto pt-2">
+          <p className="text-xs text-slate-500 mt-auto pt-2">
             These insights are assistive, not clinical guidance.
           </p>
         </div>
@@ -98,18 +111,17 @@ export default function App() {
   const [input, setInput] = useState("");
   const [msgs, setMsgs] = useState([]); // {role, content}
   const [loading, setLoading] = useState(false);
-  const [latest, setLatest] = useState(null); // {mood, strategy, crisis_detected, analyzing}
+  const [latest, setLatest] = useState(null); // {mood, strategy, safety, analyzing}
   const logRef = useRef(null);
 
   // ---- ChatGPT-like scrolling ----
-  const [autoStick, setAutoStick] = useState(true); // stick to bottom unless user scrolls up
+  const [autoStick, setAutoStick] = useState(true);
   const [showJump, setShowJump] = useState(false);
 
-  // Decide if we're near bottom
   const updateStickiness = () => {
     const el = logRef.current;
     if (!el) return;
-    const threshold = 80; // px from bottom considered "at bottom"
+    const threshold = 80;
     const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
     setShowJump(!atBottom);
     if (atBottom) setAutoStick(true);
@@ -128,7 +140,6 @@ export default function App() {
     el.scrollTo({ top: el.scrollHeight, behavior });
   };
 
-  // Auto-scroll only if user hasn't scrolled up
   useEffect(() => {
     if (autoStick) scrollToBottom("smooth");
   }, [msgs, loading]);
@@ -138,13 +149,11 @@ export default function App() {
     const text = input.trim();
     if (!text || loading) return;
 
-    // Append user message
     setMsgs((m) => [...m, { role: "user", content: text }]);
     setInput("");
 
-    // Optimistic: Insights show "Analyzing…"
     setLatest((prev) => ({
-      ...(prev || { crisis_detected: false }),
+      ...(prev || {}),
       analyzing: true,
     }));
 
@@ -155,18 +164,19 @@ export default function App() {
       // Append assistant message
       setMsgs((m) => [...m, { role: "assistant", content: res.encouragement }]);
 
-      // Finalize Insights
+      // Save insights (now includes safety from backend)
       setLatest({
         mood: res.mood,
         strategy: res.strategy,
-        crisis_detected: res.crisis_detected,
+        safety: res.safety ?? {
+          level: res.crisis_detected ? "crisis_self" : "safe",
+          reason: res.crisis_detected ? "Crisis mode" : "No crisis indicators found",
+        },
         analyzing: false,
       });
     } catch (err) {
       const detail = err?.message || "Something went wrong. Please try again.";
       setMsgs((m) => [...m, { role: "assistant", content: `Error: ${detail}` }]);
-
-      // Clear analyzing state, keep previous insights
       setLatest((prev) => (prev ? { ...prev, analyzing: false } : null));
     } finally {
       setLoading(false);
@@ -185,11 +195,9 @@ export default function App() {
           </p>
         </header>
 
-        {/* NOTE: min-h instead of fixed h so the page can extend & scroll */}
         <div className="grid min-h-[calc(100vh-7.5rem)] grid-cols-1 gap-6 lg:grid-cols-3">
           {/* Chat */}
           <section className="relative lg:col-span-2 rounded-3xl border border-emerald-100/60 bg-white/80 backdrop-blur-md shadow-md flex flex-col">
-            {/* messages */}
             <div
               ref={logRef}
               className="flex-1 overflow-y-auto px-4 sm:px-6 py-5 space-y-4"
@@ -218,11 +226,7 @@ export default function App() {
               )}
             </div>
 
-            {/* input */}
-            <form
-              onSubmit={onSend}
-              className="border-t border-emerald-100/70 px-4 sm:px-6 py-4 flex gap-3"
-            >
+            <form onSubmit={onSend} className="border-t border-emerald-100/70 px-4 sm:px-6 py-4 flex gap-3">
               <input
                 className="flex-1 rounded-2xl border border-slate-200 bg-white/90 px-4 py-3 shadow-inner placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-400"
                 placeholder="Tell me how you feel…"
@@ -243,7 +247,6 @@ export default function App() {
               </button>
             </form>
 
-            {/* Jump to latest */}
             {showJump && (
               <button
                 onClick={() => {
@@ -265,7 +268,6 @@ export default function App() {
 
           {/* Insights */}
           <section className="lg:col-span-1">
-            {/* sticky keeps it visible while the page scrolls */}
             <div className="h-full lg:sticky lg:top-[5.5rem]">
               <Insights latest={latest} />
             </div>
