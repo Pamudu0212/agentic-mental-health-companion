@@ -3,12 +3,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import List, Dict, Optional, Literal
 
-from .agents.safety import detect_crisis
+from .agents.safety import detect_crisis, detect_crisis_with_moderation
 from .agents.mood import detect_mood
 from .agents.strategy import suggest_strategy
 from .agents.encouragement import encourage
 
-# Crisis types: "none" | "self_harm" | "other_harm"
+# Crisis types
 Crisis = Literal["none", "self_harm", "other_harm"]
 
 CRISIS_MESSAGE = (
@@ -35,7 +35,7 @@ UNSAFE_HINTS = (
 )
 
 def _likely_unsafe(s: str) -> bool:
-    t = s.lower()
+    t = (s or "").lower()
     return any(k in t for k in UNSAFE_HINTS)
 
 def validate_and_repair(state: TurnState) -> TurnState:
@@ -74,11 +74,11 @@ async def run_pipeline(
     user_text: str,
     history: Optional[List[Dict[str, str]]] = None,
 ):
-    # Shared state (blackboard)
+    # Shared state
     state = TurnState(user_text=user_text, history=history or [])
 
-    # 1) Safety gate (hard)
-    state.crisis = detect_crisis(state.user_text)
+    # 1) Safety gate (rules first, LLM moderation if enabled)
+    state.crisis = await detect_crisis_with_moderation(state.user_text)
 
     if state.crisis != "none":
         state = validate_and_repair(state)
@@ -89,18 +89,18 @@ async def run_pipeline(
             "crisis_detected": True,
         }
 
-    # 2) Mood (deterministic HF model)
+    # 2) Mood
     state.mood = detect_mood(state.user_text) or "neutral"
 
-    # 3) Strategy (conditioned on safety+mood+history)
+    # 3) Strategy
     state.strategy = await suggest_strategy(
         user_text=state.user_text,
         mood=state.mood,
-        crisis=state.crisis,     # <-- pass full crisis type string
+        crisis=state.crisis,
         history=state.history,
     )
 
-    # If the strategy signals danger, switch to crisis
+    # Defense: if strategy itself looks unsafe
     if detect_crisis(state.strategy) != "none":
         state.crisis = "self_harm"
         state = validate_and_repair(state)
@@ -111,12 +111,12 @@ async def run_pipeline(
             "crisis_detected": True,
         }
 
-    # 4) Encouragement (must respect mood+strategy+safety)
+    # 4) Encouragement
     state.encouragement = await encourage(
         user_text=state.user_text,
         mood=state.mood,
         strategy=state.strategy,
-        crisis=state.crisis,     # <-- FIXED: pass crisis argument
+        crisis=state.crisis,
         history=state.history,
     )
 
