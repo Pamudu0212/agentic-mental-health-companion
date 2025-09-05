@@ -1,21 +1,11 @@
 # app/agents/encouragement.py
-import os, httpx, json
-from typing import List, Dict, Optional, Literal
-from ..agents.safety import detect_crisis
+from __future__ import annotations
+from typing import Optional, List, Dict, Literal
+import os, random, httpx
 
-OPENAI_API_KEY  = os.getenv("OPENAI_API_KEY") or os.getenv("GROQ_API_KEY")
-OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
-OPENAI_MODEL    = os.getenv("OPENAI_MODEL", "gpt-4o-mini")  # or llama-3.1-70b-versatile
+from ..prompts import ENCOURAGEMENT_SYSTEM
 
-SYSTEM = """You are the Encouragement Agent.
-Write 2–4 warm, non-clinical sentences that mirror the user’s feeling and invite exactly the given strategy.
-Rules:
-- Must mention the strategy verbatim once.
-- Must be safe; never normalize harm; no instructions enabling harm.
-- If crisis flag is not 'none', return the crisis support message instead.
-Output JSON ONLY:
-{"encouragement": string}
-"""
+Crisis = Literal["none", "self_harm", "other_harm"]
 
 CRISIS_MESSAGE = (
     "I’m really concerned about safety here. I can’t help with anything that could put "
@@ -23,69 +13,85 @@ CRISIS_MESSAGE = (
     "If you can, reach out to someone you trust so you’re not alone."
 )
 
-def _history(history: Optional[List[Dict[str, str]]]) -> str:
-    if not history: return ""
-    lines = []
-    for m in history[-6:]:
-        lines.append(f"{m['role']}: {m['content']}")
-    return "\n".join(lines)
+# --------- Small safe fallbacks (used if LLM call fails) ----------
+FALLBACKS = [
+    "Thanks for saying that. What feels most present for you right now?",
+    "I’m listening. Could you say a little more about what’s hard in this moment?",
+    "That makes sense. What do you notice in your body or thoughts right now?",
+]
 
-async def encourage(
-    user_text: str,
-    mood: str,
-    strategy: str,
-    crisis: Literal["none","self_harm","other_harm"],
-    history: Optional[List[Dict[str, str]]] = None,
+OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
+OPENAI_MODEL    = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+OPENAI_API_KEY  = os.getenv("OPENAI_API_KEY", "")
+
+async def _chat(messages: list[dict], temperature=0.6, top_p=0.9, timeout=18.0) -> str:
+    headers = {"Authorization": f"Bearer {OPENAI_API_KEY}"} if OPENAI_API_KEY else {}
+    body = {"model": OPENAI_MODEL, "messages": messages, "temperature": temperature, "top_p": top_p}
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        r = await client.post(f"{OPENAI_BASE_URL.rstrip('/')}/chat/completions",
+                              headers=headers, json=body)
+        r.raise_for_status()
+        data = r.json()
+        return (data["choices"][0]["message"]["content"] or "").strip()
+
+# ----------------------------
+# New: conversation-only mode
+# ----------------------------
+async def converse(
+    *, user_text: str, mood: str, history: Optional[List[Dict[str, str]]], crisis: Crisis = "none"
 ) -> str:
+    """
+    Produce a therapist-like reply: brief reflection + ONE open, gentle question.
+    No coping steps, no lists, no emojis.
+    """
     if crisis != "none":
         return CRISIS_MESSAGE
 
-    # extra guard
-    if detect_crisis(user_text) != "none":
-        return CRISIS_MESSAGE
-
-    user_prompt = {
-        "role": "user",
-        "content": (
-            f"User mood: {mood}\n"
-            f"User text: {user_text}\n"
-            f"Strategy to invite (must include verbatim once): {strategy}\n"
-            f"Crisis: {crisis}\n"
-            f"History:\n{_history(history)}\n\n"
-            "Return JSON only."
-        ),
-    }
-
-    payload = {
-        "model": OPENAI_MODEL,
-        "messages": [
-            {"role": "system", "content": SYSTEM},
-            user_prompt,
-        ],
-        "temperature": 0.35,
-        "response_format": {"type": "json_object"},
-    }
-
-    async with httpx.AsyncClient(timeout=40.0) as client:
-        r = await client.post(
-            f"{OPENAI_BASE_URL}/chat/completions",
-            headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
-            json=payload,
-        )
-        r.raise_for_status()
-        data = r.json()
-        text = data["choices"][0]["message"]["content"]
-
+    sys = (
+        "You are a warm, non-clinical companion. Respond in 1–2 short sentences. "
+        "First reflect/validate the user's feeling. Then ask ONE open, gentle question to learn more. "
+        "No advice, no coping steps, no lists, no emojis."
+    )
+    messages = [
+        {"role": "system", "content": sys},
+        {"role": "user", "content": f"User said: {user_text}\nMood guess: {mood or 'neutral'}\nWrite the reply."},
+    ]
     try:
-        obj = json.loads(text)
-        reply = (obj.get("encouragement") or "").strip()
+        out = await _chat(messages, temperature=0.6, top_p=0.9)
+        # keep very short
+        if len(out.split()) > 70:
+            out = "Thanks for sharing that. What feels most present for you right now?"
+        return out.strip()
     except Exception:
-        reply = (
-            "I’m here with you and I hear how you’re feeling. "
-            f"If it helps, you could try this small step: {strategy}"
-        )
+        return random.choice(FALLBACKS)
 
-    # post-guard
-    if detect_crisis(reply) != "none":
+# ----------------------------
+# (Optional) step-style helper
+# ----------------------------
+async def encourage(
+    *, user_text: str, mood: str, strategy: str, history: Optional[List[Dict[str, str]]], crisis: Crisis = "none"
+) -> str:
+    """
+    Legacy function for step-style encouragement (kept for compatibility).
+    If you call this, include a `strategy` sentence to weave in; otherwise it's a
+    short supportive line.
+    """
+    if crisis != "none":
         return CRISIS_MESSAGE
-    return reply
+
+    prompt = (
+        f"{ENCOURAGEMENT_SYSTEM}\n\n"
+        f"User: {user_text}\n"
+        f"Mood guess: {mood or 'neutral'}\n"
+        f"Suggested tiny step (optional): {strategy or '(none)'}\n\n"
+        "Write 1–2 short sentences. If a step is provided and sensible, include it in natural language."
+    )
+    messages = [{"role": "system", "content": ENCOURAGEMENT_SYSTEM},
+                {"role": "user", "content": prompt}]
+    try:
+        out = await _chat(messages, temperature=0.5, top_p=0.9)
+        return out.strip()
+    except Exception:
+        if strategy:
+            return f"Thanks for sharing that. One tiny next step: {strategy}"
+        return random.choice(FALLBACKS)
