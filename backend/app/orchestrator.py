@@ -1,29 +1,133 @@
 # app/orchestrator.py
-from .agents.mood import detect_mood
+from __future__ import annotations
+from dataclasses import dataclass
+from typing import List, Dict, Optional, Literal
+
 from .agents.safety import detect_crisis
+from .agents.mood import detect_mood
 from .agents.strategy import suggest_strategy
 from .agents.encouragement import encourage
-from .prompts import CRISIS_MESSAGE
 
-async def run_pipeline(user_text: str):
-    # 1) Safety override first — if crisis, stop and return crisis message
-    crisis = detect_crisis(user_text)
-    if crisis:
+# Crisis types: "none" | "self_harm" | "other_harm"
+Crisis = Literal["none", "self_harm", "other_harm"]
+
+CRISIS_MESSAGE = (
+    "I’m really concerned about safety here. I can’t help with anything that could put "
+    "you or others at risk. Please contact local emergency services or a crisis hotline right now. "
+    "If you can, reach out to someone you trust so you’re not alone."
+)
+
+@dataclass
+class TurnState:
+    user_text: str
+    history: Optional[List[Dict[str, str]]]  # [{role, content}]
+    crisis: Crisis = "none"
+    mood: str = "neutral"        # anger|joy|optimism|sadness|neutral|unknown
+    strategy: str = ""
+    encouragement: str = ""
+
+# -----------------------
+# Validation / Reconcile
+# -----------------------
+UNSAFE_HINTS = (
+    "kill", "suicide", "stab", "shoot", "harm", "hurt", "explode", "bomb",
+    "attack", "poison", "unalive",
+)
+
+def _likely_unsafe(s: str) -> bool:
+    t = s.lower()
+    return any(k in t for k in UNSAFE_HINTS)
+
+def validate_and_repair(state: TurnState) -> TurnState:
+    """
+    Enforce final invariants:
+      - If any sign of crisis appears in outputs → crisis mode wins.
+      - Encouragement must mention/align with strategy if we’re not in crisis.
+    """
+    if state.crisis != "none":
+        state.mood = "unknown"
+        state.strategy = ""
+        state.encouragement = CRISIS_MESSAGE
+        return state
+
+    # post-safety scan of generated text (defense-in-depth)
+    if _likely_unsafe(state.strategy) or _likely_unsafe(state.encouragement):
+        state.crisis = "self_harm"  # generic fallback; could re-run detector to choose kind
+        state.mood = "unknown"
+        state.strategy = ""
+        state.encouragement = CRISIS_MESSAGE
+        return state
+
+    # If reply forgot to include the strategy, patch softly
+    if state.strategy and state.strategy[:20].lower() not in state.encouragement.lower():
+        state.encouragement = (
+            f"{state.encouragement.rstrip()}\n\n"
+            f"One tiny, safe step you could try now: {state.strategy}"
+        )
+
+    return state
+
+# -----------------------
+# Orchestration
+# -----------------------
+async def run_pipeline(
+    user_text: str,
+    history: Optional[List[Dict[str, str]]] = None,
+):
+    # Shared state (blackboard)
+    state = TurnState(user_text=user_text, history=history or [])
+
+    # 1) Safety gate (hard)
+    state.crisis = detect_crisis(state.user_text)
+    # print(f"[safety] input={state.user_text!r} -> crisis_type={state.crisis}")
+
+    if state.crisis != "none":
+        state = validate_and_repair(state)
         return {
-            "mood": "unknown",
-            "strategy": "",
-            "encouragement": CRISIS_MESSAGE,
+            "mood": state.mood,
+            "strategy": state.strategy,
+            "encouragement": state.encouragement,
             "crisis_detected": True,
         }
 
-    # 2) Mood → Strategy → Encouragement
-    mood = detect_mood(user_text)
-    strategy = await suggest_strategy(mood, user_text)
-    encouragement = await encourage(user_text, mood, strategy)
+    # 2) Mood (deterministic HF model)
+    state.mood = detect_mood(state.user_text) or "neutral"
+
+    # 3) Strategy (conditioned on safety+mood+history)
+    state.strategy = await suggest_strategy(
+        mood=state.mood,
+        user_text=state.user_text,
+        history=state.history,
+        crisis=state.crisis,  # keep passing crisis to strategy
+    )
+
+    # If the strategy signals danger via defense-in-depth, switch to crisis
+    if detect_crisis(state.strategy) != "none":
+        state.crisis = "self_harm"  # generic; you can refine via another call if you want
+        state = validate_and_repair(state)
+        return {
+            "mood": state.mood,
+            "strategy": state.strategy,
+            "encouragement": state.encouragement,
+            "crisis_detected": True,
+        }
+
+    # 4) Encouragement (must respect mood+strategy+safety)
+    # ✅ FIX: pass `crisis=state.crisis`
+    state.encouragement = await encourage(
+        user_text=state.user_text,
+        mood=state.mood,
+        strategy=state.strategy,
+        history=state.history,
+        crisis=state.crisis,   # <-- added
+    )
+
+    # Final reconciliation
+    state = validate_and_repair(state)
 
     return {
-        "mood": mood,
-        "strategy": strategy,
-        "encouragement": encouragement,
-        "crisis_detected": False,
+        "mood": state.mood,
+        "strategy": state.strategy,
+        "encouragement": state.encouragement,
+        "crisis_detected": state.crisis != "none",
     }
