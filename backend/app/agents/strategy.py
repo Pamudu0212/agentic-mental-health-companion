@@ -1,75 +1,81 @@
 # app/agents/strategy.py
-import os, httpx
-from typing import List, Dict, Optional
-from ..prompts import STRATEGY_SYSTEM, CRISIS_MESSAGE_SELF, CRISIS_MESSAGE_OTHERS
-from .safety import detect_crisis  # defense-in-depth
+import os, httpx, json
+from typing import List, Dict, Optional, Literal
+from ..agents.safety import detect_crisis
 
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+OPENAI_API_KEY  = os.getenv("OPENAI_API_KEY") or os.getenv("GROQ_API_KEY")
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+OPENAI_MODEL    = os.getenv("OPENAI_MODEL", "gpt-4o-mini")  # or llama-3.1-70b-versatile via Groq
 
-SAFETY_GUARD = (
-    "SAFETY RULES:\n"
-    "- If user shows intent to harm self or others, do NOT propose any strategy. "
-    "Return a short crisis support message only.\n"
-    "- Never suggest actions that could escalate risk or involve violence, weapons, or self-harm."
-)
+StrategyJSON = dict  # {"strategy": "...", "needs_clinician": bool}
 
-def _crisis_message(kind: str) -> str:
-    return CRISIS_MESSAGE_SELF if kind == "self_harm" else CRISIS_MESSAGE_OTHERS
+SYSTEM = """You are the Strategy Agent.
+Goal: produce ONE tiny, low-effort, safe action the user can do now.
+Constraints:
+- The action MUST be safe. If user intent is harmful, do NOT suggest any action.
+- Be concrete and brief (max 2 sentences).
+Output ONLY valid JSON:
+{"strategy": string, "needs_clinician": boolean}
+"""
+
+def _history(history: Optional[List[Dict[str, str]]]) -> str:
+    if not history: return ""
+    lines = []
+    for m in history[-6:]:
+        lines.append(f"{m['role']}: {m['content']}")
+    return "\n".join(lines)
 
 async def suggest_strategy(
     mood: str,
     user_text: str,
+    crisis: Literal["none","self_harm","other_harm"],
     history: Optional[List[Dict[str, str]]] = None,
 ) -> str:
-    # Extra guard
-    crisis_kind = detect_crisis(user_text)
-    if crisis_kind != "none":
-        return _crisis_message(crisis_kind)
+    # Hard stop if crisis from gate
+    if crisis != "none":
+        return ""
 
-    # Seed if no API
-    seed = {
-        "sadness": "Try a 2-minute grounding exercise: name 5 things you see, 4 you can touch, 3 you hear, 2 you smell, 1 you taste.",
-        "anger": "Do a 60-second box-breath: inhale 4, hold 4, exhale 4, hold 4.",
-        "joy": "Savor it: jot one sentence about what made you smile and share it with a friend if you want.",
-        "optimism": "Set a tiny goal for the next hour and take the smallest first step.",
-        "neutral": "Take a 2-minute stretch and drink a glass of water.",
-    }.get(mood, "Take a 2-minute stretch and drink a glass of water.")
+    # Quick local guard
+    if detect_crisis(user_text) != "none":
+        return ""
 
-    if not OPENAI_API_KEY:
-        return seed
-
-    messages = [
-        {"role": "system", "content": f"{STRATEGY_SYSTEM}\n\n{SAFETY_GUARD}"},
-    ]
-    if history:
-        messages.extend(history[-6:])
-
-    messages.append({
+    user_prompt = {
         "role": "user",
         "content": (
             f"User mood: {mood}\n"
-            f"User message: {user_text}\n"
-            f"Draft strategy: {seed}\n\n"
-            "Refine into ONE safe, compassionate, low-effort action (max 2 sentences). "
-            "If any harm-to-self or harm-to-others intent is present, follow SAFETY RULES."
+            f"User text: {user_text}\n"
+            f"History (last turns):\n{_history(history)}\n\n"
+            "Return JSON only."
         ),
-    })
+    }
+
+    payload = {
+        "model": OPENAI_MODEL,
+        "messages": [
+            {"role": "system", "content": SYSTEM},
+            user_prompt,
+        ],
+        "temperature": 0.2,
+        "response_format": {"type": "json_object"},
+    }
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         r = await client.post(
             f"{OPENAI_BASE_URL}/chat/completions",
             headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
-            json={"model": OPENAI_MODEL, "messages": messages, "temperature": 0.3},
+            json=payload,
         )
         r.raise_for_status()
         data = r.json()
-        text = data["choices"][0]["message"]["content"].strip()
+        text = data["choices"][0]["message"]["content"]
 
-    # Post-generation safety check
-    out_kind = detect_crisis(text)
-    if out_kind != "none":
-        return _crisis_message(out_kind)
+    try:
+        obj: StrategyJSON = json.loads(text)
+    except Exception:
+        # fallback seed
+        return "Take a 2-minute grounding pause: name 5 things you see, 4 touch, 3 hear, 2 smell, 1 taste."
 
-    return text
+    if obj.get("needs_clinician"):
+        return ""
+
+    return (obj.get("strategy") or "").strip()
