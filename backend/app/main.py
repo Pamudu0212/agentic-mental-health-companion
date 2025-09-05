@@ -1,13 +1,27 @@
 # app/main.py
+from __future__ import annotations
+from dotenv import load_dotenv
+load_dotenv()
+
+import os
+import json
+import asyncio
+from typing import List, Dict
+
+import httpx
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
+from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
 from .db import Base, engine, get_db
 from .models import Interaction
 from .schemas import ChatRequest, ChatResponse
 from .orchestrator import run_pipeline
-from .agents.mood import _pipe  # warm-up
+from .agents.mood import _pipe, detect_mood  # warm-up + quick label
+from .agents.safety import detect_crisis     # returns "none" | "self_harm" | "other_harm"
+from .prompts import ENCOURAGEMENT_SYSTEM, CRISIS_MESSAGE_SELF, CRISIS_MESSAGE_OTHERS
 
 # -----------------------------------------------------------------------------
 # FastAPI app
@@ -18,8 +32,13 @@ app = FastAPI(title="Agentic Mental Health Companion")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
+        "http://localhost:5175",
+        "http://127.0.0.1:5175",
+        # add more if you use a different dev port:
         "http://localhost:5173",
         "http://127.0.0.1:5173",
+        "http://localhost:5178",
+        "http://127.0.0.1:5178",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -42,6 +61,71 @@ async def warm_models():
         print("⚠️ Could not warm mood model:", e)
 
 # -----------------------------------------------------------------------------
+# Helpers
+# -----------------------------------------------------------------------------
+def fetch_history_as_messages(db: Session, user_id: str, limit: int = 8) -> List[Dict[str, str]]:
+    """
+    Fetch the last `limit` turns and format them as OpenAI-style messages:
+    [{role:'user'|'assistant', content:'...'}]
+    """
+    rows = (
+        db.query(Interaction)
+        .filter(Interaction.user_id == user_id)
+        .order_by(desc(Interaction.created_at))
+        .limit(limit)
+        .all()
+    )
+    rows = list(reversed(rows))  # oldest -> newest
+
+    messages: List[Dict[str, str]] = []
+    for r in rows:
+        if r.user_text:
+            messages.append({"role": "user", "content": r.user_text})
+        if r.encouragement:
+            messages.append({"role": "assistant", "content": r.encouragement})
+    return messages
+
+
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+
+
+async def _openai_stream(messages: List[Dict[str, str]]):
+    """
+    Stream plain-text tokens from OpenAI Chat Completions.
+    Yields text chunks.
+    """
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        async with client.stream(
+            "POST",
+            f"{OPENAI_BASE_URL}/chat/completions",
+            headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
+            json={
+                "model": OPENAI_MODEL,
+                "stream": True,
+                "messages": messages,
+                "temperature": 0.7,
+            },
+        ) as r:
+            r.raise_for_status()
+            async for line in r.aiter_lines():
+                if not line or not line.startswith("data:"):
+                    continue
+                payload = line.removeprefix("data:").strip()
+                if payload == "[DONE]":
+                    break
+                try:
+                    data = json.loads(payload)
+                    delta = data["choices"][0]["delta"].get("content")
+                    if delta:
+                        yield delta
+                        await asyncio.sleep(0)
+                except Exception:
+                    # swallow malformed keepalives/etc
+                    continue
+
+# -----------------------------------------------------------------------------
 # Routes
 # -----------------------------------------------------------------------------
 @app.get("/health")
@@ -50,12 +134,18 @@ async def health():
 
 @app.post("/chat", response_model=ChatResponse)
 async def chat(body: ChatRequest, db: Session = Depends(get_db)):
-    # Run the agent pipeline
-    result = await run_pipeline(body.user_text)
+    """
+    Non-streaming chat. Now includes short conversational history.
+    """
+    user_id = body.user_id or "anon"
+    history = fetch_history_as_messages(db, user_id, limit=8)
+
+    # Run the agent pipeline (this handles crisis internally too)
+    result = await run_pipeline(body.user_text, history=history)
 
     # Persist minimal interaction record
     record = Interaction(
-        user_id=body.user_id or "anon",
+        user_id=user_id,
         user_text=body.user_text,
         detected_mood=result["mood"],
         chosen_strategy=result["strategy"],
@@ -65,5 +155,57 @@ async def chat(body: ChatRequest, db: Session = Depends(get_db)):
     db.add(record)
     db.commit()
 
-    # Return the response payload
     return ChatResponse(**result)
+
+@app.post("/chat/stream")
+async def chat_stream(body: ChatRequest, db: Session = Depends(get_db)):
+    """
+    Streaming chat endpoint that yields tokens as they're generated.
+    Frontend can read incremental chunks and render in real time.
+    """
+    user_id = body.user_id or "anon"
+
+    # Safety short-circuit using only the new user text
+    crisis_type = detect_crisis(body.user_text)  # "none" | "self_harm" | "other_harm"
+    if crisis_type != "none":
+        crisis_message = CRISIS_MESSAGE_SELF if crisis_type == "self_harm" else CRISIS_MESSAGE_OTHERS
+
+        async def crisis_gen():
+            yield crisis_message
+
+        # persist crisis response
+        db.add(Interaction(
+            user_id=user_id,
+            user_text=body.user_text,
+            detected_mood="unknown",
+            chosen_strategy="",
+            encouragement=crisis_message,
+            safety_flag="true",
+        ))
+        db.commit()
+        return StreamingResponse(crisis_gen(), media_type="text/plain")
+
+    # Build short context
+    history = fetch_history_as_messages(db, user_id, limit=8)
+    messages = [{"role": "system", "content": ENCOURAGEMENT_SYSTEM}] + history + [
+        {"role": "user", "content": body.user_text}
+    ]
+
+    accumulated = {"text": ""}
+
+    async def generator():
+        async for chunk in _openai_stream(messages):
+            accumulated["text"] += chunk
+            yield chunk
+        # after stream completes, store one interaction row
+        db.add(Interaction(
+            user_id=user_id,
+            user_text=body.user_text,
+            detected_mood=detect_mood(body.user_text),
+            chosen_strategy="",
+            encouragement=accumulated["text"],
+            safety_flag="false",
+        ))
+        db.commit()
+
+    return StreamingResponse(generator(), media_type="text/plain")
