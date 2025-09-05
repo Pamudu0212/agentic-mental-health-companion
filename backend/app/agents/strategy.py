@@ -1,10 +1,30 @@
+# app/agents/strategy.py
 from __future__ import annotations
-from typing import Optional, List, Dict, Literal
-import random
+import os, httpx, json, random
+from typing import List, Dict, Optional, Literal
+from ..agents.safety import detect_crisis
 
 Crisis = Literal["none", "self_harm", "other_harm"]
 
-# Mood → micro-step library (short, actionable, low-risk).
+# -----------------------------------------------------------------------------
+# Config for LLM backend
+# -----------------------------------------------------------------------------
+OPENAI_API_KEY  = os.getenv("OPENAI_API_KEY") or os.getenv("GROQ_API_KEY") or ""
+OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/")
+OPENAI_MODEL    = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+
+SYSTEM = """You are the Strategy Agent.
+Goal: produce ONE tiny, low-effort, safe action the user can do now.
+Constraints:
+- The action MUST be safe. If user intent is harmful, do NOT suggest any action.
+- Be concrete and brief (max 2 sentences).
+Output ONLY valid JSON:
+{"strategy": string, "needs_clinician": boolean}
+"""
+
+# -----------------------------------------------------------------------------
+# Fallback static library of micro-steps
+# -----------------------------------------------------------------------------
 MOOD_STEPS: Dict[str, List[str]] = {
     "joy": [
         "Notice one thing you appreciate right now",
@@ -52,12 +72,76 @@ def _pick_non_repeating(candidates: List[str], history: Optional[List[Dict[str, 
         pool = candidates
     return random.choice(pool)
 
+def _history(history: Optional[List[Dict[str, str]]]) -> str:
+    if not history: 
+        return ""
+    lines = []
+    for m in history[-6:]:
+        lines.append(f"{m['role']}: {m['content']}")
+    return "\n".join(lines)
+
+# -----------------------------------------------------------------------------
+# Main function
+# -----------------------------------------------------------------------------
 async def suggest_strategy(
-    *, mood: str, user_text: str, history: Optional[List[Dict[str, str]]], crisis: Crisis = "none"
+    *,
+    mood: str,
+    user_text: str,
+    crisis: Crisis,
+    history: Optional[List[Dict[str, str]]] = None,
 ) -> str:
-    """Return a tiny, safe next step. Empty string if in crisis."""
+    """Return a tiny, safe next step. Uses LLM if configured, else local library."""
+    # Hard stop if crisis flagged
     if crisis != "none":
         return ""
-    key = (mood or "neutral").lower()
-    steps = MOOD_STEPS.get(key) or MOOD_STEPS["neutral"]
-    return _pick_non_repeating(steps, history)
+
+    # Local guard: if input text itself is unsafe
+    if detect_crisis(user_text) != "none":
+        return ""
+
+    # If no API key → fallback to static library
+    if not OPENAI_API_KEY:
+        key = (mood or "neutral").lower()
+        steps = MOOD_STEPS.get(key) or MOOD_STEPS["neutral"]
+        return _pick_non_repeating(steps, history)
+
+    # Otherwise → call LLM Strategy Agent
+    user_prompt = {
+        "role": "user",
+        "content": (
+            f"User mood: {mood}\n"
+            f"User text: {user_text}\n"
+            f"History (last turns):\n{_history(history)}\n\n"
+            "Return JSON only."
+        ),
+    }
+
+    payload = {
+        "model": OPENAI_MODEL,
+        "messages": [
+            {"role": "system", "content": SYSTEM},
+            user_prompt,
+        ],
+        "temperature": 0.2,
+        "response_format": {"type": "json_object"},
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            r = await client.post(
+                f"{OPENAI_BASE_URL}/chat/completions",
+                headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
+                json=payload,
+            )
+            r.raise_for_status()
+            data = r.json()
+            text = data["choices"][0]["message"]["content"]
+            obj = json.loads(text)
+            if obj.get("needs_clinician"):
+                return ""
+            return (obj.get("strategy") or "").strip()
+    except Exception:
+        # fallback if API fails
+        key = (mood or "neutral").lower()
+        steps = MOOD_STEPS.get(key) or MOOD_STEPS["neutral"]
+        return _pick_non_repeating(steps, history)
