@@ -1,13 +1,10 @@
 # app/agents/critic_agent.py
 from __future__ import annotations
-import os, re, httpx
+import re
 from typing import Dict
 from ..agents.safety import detect_crisis
 from ..prompts import ENCOURAGEMENT_SYSTEM
-
-OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
-OPENAI_MODEL    = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-OPENAI_API_KEY  = os.getenv("OPENAI_API_KEY", "")
+from ..llm_router import chat_completions  # ← per-agent router
 
 UNSAFE_HINTS = ("suicide", "kill yourself", "hurt yourself")
 
@@ -34,15 +31,12 @@ async def critic_fix(message: str, strategy: str) -> Dict[str, str]:
             "exactly ONE safe do-now step, no lists, no emojis."
         )
         user = f"Original reply:\n{message}\n\nExtracted step:\n{strategy}\n\nRewrite now."
-        headers = {"Authorization": f"Bearer {OPENAI_API_KEY}"} if OPENAI_API_KEY else {}
-        body = {"model": OPENAI_MODEL, "messages": [
+
+        data = await chat_completions("CRITIC", [
             {"role": "system", "content": sys},
             {"role": "user", "content": user},
-        ], "temperature": 0.2}
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            r = await client.post(f"{OPENAI_BASE_URL.rstrip('/')}/chat/completions",
-                                  headers=headers, json=body)
-            r.raise_for_status()
-            fixed = (r.json()["choices"][0]["message"]["content"] or "").strip()
+        ], temperature=0.2, top_p=1.0)
+        fixed = (data["choices"][0]["message"]["content"] or "").strip()
         return {"ok": True, "message": fixed, "reason": "rewritten"}
+
     return {"ok": True, "message": message, "reason": "clean"}
