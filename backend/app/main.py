@@ -6,12 +6,13 @@ load_dotenv()
 import os
 import json
 import asyncio
+import traceback
 from typing import List, Dict
 
 import httpx
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
@@ -132,15 +133,13 @@ async def _openai_stream(messages: List[Dict[str, str]]):
 async def health():
     return {"status": "ok"}
 
-@app.post("/chat", response_model=ChatResponse)
-async def chat(body: ChatRequest, db: Session = Depends(get_db)):
-    """
-    Non-streaming chat. Now includes short conversational history.
-    """
+
+async def _handle_chat(body: ChatRequest, db: Session) -> ChatResponse:
+    """Shared core for /chat and /api/chat."""
     user_id = body.user_id or "anon"
     history = fetch_history_as_messages(db, user_id, limit=8)
 
-    # Run the agent pipeline (this handles crisis internally too)
+    # Run the agent pipeline (handles crisis internally too)
     result = await run_pipeline(body.user_text, history=history)
 
     # Persist minimal interaction record
@@ -156,6 +155,29 @@ async def chat(body: ChatRequest, db: Session = Depends(get_db)):
     db.commit()
 
     return ChatResponse(**result)
+
+
+@app.post("/chat", response_model=ChatResponse)
+async def chat(body: ChatRequest, db: Session = Depends(get_db)):
+    """Non-streaming chat (original path)."""
+    return await _handle_chat(body, db)
+
+
+@app.post("/api/chat")
+async def chat_api(body: ChatRequest, db: Session = Depends(get_db)):
+    """
+    Non-streaming chat (frontend usually calls this through Vite proxy).
+    Wrapped with try/except to surface readable errors instead of a blind 500.
+    """
+    try:
+        return await _handle_chat(body, db)
+    except Exception as e:
+        traceback.print_exc()
+        return JSONResponse(
+            status_code=500,
+            content={"error": "chat_failed", "message": str(e), "type": e.__class__.__name__},
+        )
+
 
 @app.post("/chat/stream")
 async def chat_stream(body: ChatRequest, db: Session = Depends(get_db)):

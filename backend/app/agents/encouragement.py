@@ -1,77 +1,91 @@
 # app/agents/encouragement.py
-import os, httpx
-from typing import List, Dict, Optional
-from ..prompts import ENCOURAGEMENT_SYSTEM, CRISIS_MESSAGE_SELF, CRISIS_MESSAGE_OTHERS
-from .safety import detect_crisis  # defense-in-depth check
+import os, httpx, json
+from typing import List, Dict, Optional, Literal
+from ..agents.safety import detect_crisis
 
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+OPENAI_API_KEY  = os.getenv("OPENAI_API_KEY") or os.getenv("GROQ_API_KEY")
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+OPENAI_MODEL    = os.getenv("OPENAI_MODEL", "gpt-4o-mini")  # or llama-3.1-70b-versatile
 
-SAFETY_GUARD = (
-    "SAFETY RULES:\n"
-    "- If the user expresses intent to harm themselves or others (even implicitly), "
-    "do NOT encourage or normalize it. Do NOT provide instructions. "
-    "Respond ONLY with a brief crisis support message urging immediate professional help. "
-    "- Avoid praise or positive framing for harmful or violent content."
+SYSTEM = """You are the Encouragement Agent.
+Write 2–4 warm, non-clinical sentences that mirror the user’s feeling and invite exactly the given strategy.
+Rules:
+- Must mention the strategy verbatim once.
+- Must be safe; never normalize harm; no instructions enabling harm.
+- If crisis flag is not 'none', return the crisis support message instead.
+Output JSON ONLY:
+{"encouragement": string}
+"""
+
+CRISIS_MESSAGE = (
+    "I’m really concerned about safety here. I can’t help with anything that could put "
+    "you or others at risk. Please contact local emergency services or a crisis hotline right now. "
+    "If you can, reach out to someone you trust so you’re not alone."
 )
 
-def _crisis_message(kind: str) -> str:
-    return CRISIS_MESSAGE_SELF if kind == "self_harm" else CRISIS_MESSAGE_OTHERS
+def _history(history: Optional[List[Dict[str, str]]]) -> str:
+    if not history: return ""
+    lines = []
+    for m in history[-6:]:
+        lines.append(f"{m['role']}: {m['content']}")
+    return "\n".join(lines)
 
 async def encourage(
     user_text: str,
     mood: str,
     strategy: str,
+    crisis: Literal["none","self_harm","other_harm"],
     history: Optional[List[Dict[str, str]]] = None,
 ) -> str:
-    """
-    Safe encouragement generator. If anything looks dangerous, we return a crisis message.
-    """
-    # Extra guard in case orchestrator missed something
-    crisis_kind = detect_crisis(user_text)
-    if crisis_kind != "none":
-        return _crisis_message(crisis_kind)
+    if crisis != "none":
+        return CRISIS_MESSAGE
 
-    if not OPENAI_API_KEY:
-        # Very safe fallback
-        return (
-            f"I’m here with you. Since you’re feeling {mood}, a small, gentle next step could be:\n\n{strategy}\n\n"
-            "Only do what feels safe and manageable right now."
-        )
+    # extra guard
+    if detect_crisis(user_text) != "none":
+        return CRISIS_MESSAGE
 
-    # Build messages with a strict safety system
-    messages = [
-        {"role": "system", "content": f"{ENCOURAGEMENT_SYSTEM}\n\n{SAFETY_GUARD}"},
-    ]
-    if history:
-        messages.extend(history[-6:])  # short context
-
-    messages.append({
+    user_prompt = {
         "role": "user",
         "content": (
             f"User mood: {mood}\n"
-            f"User message: {user_text}\n"
-            f"Suggested small step: {strategy}\n\n"
-            "Write a short (2–4 sentences), warm, non-clinical reply that mirrors the user's feeling "
-            "and invites the suggested step. Be gentle and concrete. "
-            "If any harm-to-self or harm-to-others is present, follow SAFETY RULES."
+            f"User text: {user_text}\n"
+            f"Strategy to invite (must include verbatim once): {strategy}\n"
+            f"Crisis: {crisis}\n"
+            f"History:\n{_history(history)}\n\n"
+            "Return JSON only."
         ),
-    })
+    }
+
+    payload = {
+        "model": OPENAI_MODEL,
+        "messages": [
+            {"role": "system", "content": SYSTEM},
+            user_prompt,
+        ],
+        "temperature": 0.35,
+        "response_format": {"type": "json_object"},
+    }
 
     async with httpx.AsyncClient(timeout=40.0) as client:
         r = await client.post(
             f"{OPENAI_BASE_URL}/chat/completions",
             headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
-            json={"model": OPENAI_MODEL, "messages": messages, "temperature": 0.4},
+            json=payload,
         )
         r.raise_for_status()
         data = r.json()
-        text = data["choices"][0]["message"]["content"].strip()
+        text = data["choices"][0]["message"]["content"]
 
-    # Post-generation safety check (defense-in-depth)
-    out_kind = detect_crisis(text)
-    if out_kind != "none":
-        return _crisis_message(out_kind)
+    try:
+        obj = json.loads(text)
+        reply = (obj.get("encouragement") or "").strip()
+    except Exception:
+        reply = (
+            "I’m here with you and I hear how you’re feeling. "
+            f"If it helps, you could try this small step: {strategy}"
+        )
 
-    return text
+    # post-guard
+    if detect_crisis(reply) != "none":
+        return CRISIS_MESSAGE
+    return reply
