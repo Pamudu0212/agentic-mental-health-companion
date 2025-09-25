@@ -8,8 +8,7 @@ from typing import List, Dict, Optional, Literal
 # Agents
 from .agents.safety import detect_crisis, detect_crisis_with_moderation
 from .agents.mood import detect_mood
-from .agents.strategy import suggest_strategy  # (kept if you still want to use it later)
-from .agents.encouragement import encourage, converse
+from .agents.encouragement import converse
 from .agents.coach_agent import coach_draft
 from .agents.critic_agent import critic_fix
 
@@ -59,7 +58,7 @@ SUPPORT_MOODS  = {"sadness", "distress", "anger"}
 POSITIVE_MOODS = {"joy", "optimism"}
 
 def _safety_summary(state: TurnState) -> dict:
-    """Simple label: 'watch' if message shows distress language or moderation flagged crisis."""
+    """Simple label: 'watch' if message shows distressed language or moderation flagged crisis."""
     txt = (state.user_text or "")
     if state.crisis == "self_harm":
         return {"level": "crisis_self",  "reason": "Self-harm risk detected"}
@@ -73,7 +72,8 @@ def validate_and_repair(state: TurnState) -> TurnState:
     """
     Enforce final invariants:
       - If crisis appears anywhere → crisis mode wins.
-      - Encouragement should align with strategy if we intentionally offered a step.
+      - If we intentionally offered a step, ensure the strategy is echoed once.
+      - If we did not intend to offer a step, ensure strategy is blank.
     """
     # Crisis wins
     if state.crisis != "none":
@@ -83,7 +83,7 @@ def validate_and_repair(state: TurnState) -> TurnState:
         state.advice_given = False
         return state
 
-    # Post-safety scan of generated text (defense-in-depth)
+    # Defense-in-depth scan
     if _likely_unsafe(state.strategy) or _likely_unsafe(state.encouragement):
         state.crisis = "self_harm"  # generic fallback
         state.mood = "unknown"
@@ -92,7 +92,7 @@ def validate_and_repair(state: TurnState) -> TurnState:
         state.advice_given = False
         return state
 
-    # If we intentionally provided advice, ensure the strategy is echoed once
+    # Ensure strategy is present in message if we intentionally gave advice
     if (
         state.advice_given
         and state.strategy
@@ -103,7 +103,7 @@ def validate_and_repair(state: TurnState) -> TurnState:
             f"Why this:\n- {state.strategy}"
         )
 
-    # If we did NOT intend to give advice, ensure strategy is empty
+    # If we did NOT intend to give advice, clear it
     if not state.advice_given:
         state.strategy = ""
 
@@ -111,13 +111,12 @@ def validate_and_repair(state: TurnState) -> TurnState:
 
 def _should_offer_step(user_text: str, mood: str) -> bool:
     """
-    Stricter gate: suggest a step ONLY when at least one primary trigger is true:
+    Offer a step ONLY if a primary trigger is present:
       - explicit help/advice request
       - a real problem question (not name/smalltalk)
-      - distress keywords in the message
-    Mood can support the decision, but mood alone is not enough.
-    Positive moods require explicit help to offer steps.
-    Short/low-content messages don't trigger steps.
+      - distressed language in the message
+
+    Positive moods require explicit help. Very short/low-content turns are ignored.
     """
     t = (user_text or "").lower()
 
@@ -171,12 +170,16 @@ async def run_pipeline(
 
     # 3) Decide: conversation (Encouragement) vs advice (Coach)
     if _should_offer_step(state.user_text, state.mood):
+        # Coach proposes a tiny safe step and a supportive draft
         draft = await coach_draft(user_text=state.user_text, mood=state.mood, history=state.history)
         state.strategy = draft.get("strategy") or ""
         draft_msg = draft.get("message") or ""
         state.advice_given = True
     else:
-        draft_msg = await converse(user_text=state.user_text, mood=state.mood, history=state.history, crisis=state.crisis)
+        # No step → just a short reflective message
+        draft_msg = await converse(
+            user_text=state.user_text, mood=state.mood, history=state.history, crisis=state.crisis
+        )
         state.strategy = ""
         state.advice_given = False
 
@@ -193,16 +196,7 @@ async def run_pipeline(
             "advice_given": state.advice_given,
         }
 
-    # 4) Encouragement (LLM-based supportive message)
-    state.encouragement = await encourage(
-        user_text=state.user_text,
-        mood=state.mood,
-        strategy=state.strategy,
-        crisis=state.crisis,
-        history=state.history,
-    )
-
-    # 5) Critic pass (safety/style/clarity on the drafted message)
+    # 4) Critic pass (safety/style/clarity on the drafted message)
     crit = await critic_fix(draft_msg, state.strategy if state.advice_given else "")
     if not crit.get("ok"):
         state.crisis = "self_harm"
@@ -218,7 +212,7 @@ async def run_pipeline(
 
     state.encouragement = crit["message"]
 
-    # 6) Final reconciliation + safety labeling
+    # 5) Final reconciliation + safety labeling
     state = validate_and_repair(state)
     return {
         "mood": state.mood,

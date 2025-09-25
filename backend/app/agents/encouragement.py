@@ -10,7 +10,7 @@ from typing import List, Dict, Optional, Literal
 import httpx
 
 from ..prompts import ENCOURAGEMENT_SYSTEM  # kept (even if unused by default)
-from ..llm_router import chat_completions  # per-agent router
+from ..llm_router import chat_completions    # per-agent router for small variants
 from ..agents.safety import detect_crisis
 
 # -------------------
