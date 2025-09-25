@@ -15,14 +15,18 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse
 from sqlalchemy import desc
 from sqlalchemy.orm import Session
+from pydantic import BaseModel
 
 from .db import Base, engine, get_db
 from .models import Interaction
 from .schemas import ChatRequest, ChatResponse
 from .orchestrator import run_pipeline
-from .agents.mood import _pipe, detect_mood  # warm-up + quick label
-from .agents.safety import detect_crisis     # returns "none" | "self_harm" | "other_harm"
+from .agents.mood import _pipe, detect_mood
+from .agents.safety import detect_crisis
 from .prompts import ENCOURAGEMENT_SYSTEM, CRISIS_MESSAGE_SELF, CRISIS_MESSAGE_OTHERS
+
+# Coping strategy suggestors
+from .agents.strategy import suggest_strategy, suggest_resources, Crisis
 
 # -----------------------------------------------------------------------------
 # FastAPI app
@@ -35,7 +39,6 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5175",
         "http://127.0.0.1:5175",
-        # add more if you use a different dev port:
         "http://localhost:5173",
         "http://127.0.0.1:5173",
         "http://localhost:5178",
@@ -231,3 +234,47 @@ async def chat_stream(body: ChatRequest, db: Session = Depends(get_db)):
         db.commit()
 
     return StreamingResponse(generator(), media_type="text/plain")
+
+
+# -----------------------------------------------------------------------------
+# Coping strategy endpoints (API + aliases)
+# -----------------------------------------------------------------------------
+class StrategyIn(BaseModel):
+    mood: str = "neutral"
+    user_text: str
+    crisis: Crisis = "none"
+    history: list[dict] | None = None
+
+
+@app.post("/api/suggest/strategy")
+async def api_suggest_strategy(inp: StrategyIn):
+    step = await suggest_strategy(
+        mood=inp.mood,
+        user_text=inp.user_text,
+        crisis=inp.crisis,
+        history=inp.history,
+    )
+    return {"strategy": step}
+
+
+@app.post("/api/suggest/resources")
+async def api_suggest_resources(inp: StrategyIn):
+    opts = await suggest_resources(
+        mood=inp.mood,
+        user_text=inp.user_text,
+        crisis=inp.crisis,
+        history=inp.history,
+    )
+    # Always return an object (never "")
+    return json.loads(opts) if opts else {"options": [], "needs_clinician": False}
+
+
+# Aliases without /api prefix (to match existing frontend calls if any)
+@app.post("/suggest/strategy")
+async def alias_suggest_strategy(inp: StrategyIn):
+    return await api_suggest_strategy(inp)
+
+
+@app.post("/suggest/resources")
+async def alias_suggest_resources(inp: StrategyIn):
+    return await api_suggest_resources(inp)

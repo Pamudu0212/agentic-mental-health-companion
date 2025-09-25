@@ -1,10 +1,34 @@
 // src/api.js
-export async function sendChat(message, userId="anon"){
-  const r = await fetch('/api/chat', {
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
+
+// Chat with the main pipeline
+export async function sendChat(message, userId = "anon") {
+  const r = await fetch("/api/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ user_text: message, user_id: userId }),
   });
   if (!r.ok) throw new Error(`Request failed: ${r.status} ${await r.text()}`);
-  return r.json();
+  return r.json(); // returns ChatResponse from backend
+}
+
+// --- NEW: micro-step suggestion ---
+export async function fetchStrategy({ user_text, mood = "neutral", crisis = "none", history = null }) {
+  const r = await fetch("/api/suggest/strategy", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_text, mood, crisis, history }),
+  });
+  if (!r.ok) throw new Error(`Strategy failed: ${r.status} ${await r.text()}`);
+  return r.json(); // { strategy: "..." }
+}
+
+// --- NEW: external resource options (video/article/book) ---
+export async function fetchResources({ user_text, mood = "neutral", crisis = "none", history = null }) {
+  const r = await fetch("/api/suggest/resources", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_text, mood, crisis, history }),
+  });
+  if (!r.ok) throw new Error(`Resources failed: ${r.status} ${await r.text()}`);
+  return r.json(); // { options: [...], needs_clinician: false }
 }

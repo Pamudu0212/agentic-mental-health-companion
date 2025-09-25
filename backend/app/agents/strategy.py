@@ -1,147 +1,175 @@
 # app/agents/strategy.py
 from __future__ import annotations
-import os, httpx, json, random
-from typing import List, Dict, Optional, Literal
+import json, random, re
+from typing import List, Dict, Optional, Literal, Iterable
+
 from ..agents.safety import detect_crisis
+from .resources import CATALOG, SYNONYMS, Resource
 
 Crisis = Literal["none", "self_harm", "other_harm"]
 
-# -----------------------------------------------------------------------------
-# Config for LLM backend
-# -----------------------------------------------------------------------------
-OPENAI_API_KEY  = os.getenv("OPENAI_API_KEY") or os.getenv("GROQ_API_KEY") or ""
-OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1").rstrip("/")
-OPENAI_MODEL    = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-
-SYSTEM = """You are the Strategy Agent.
-Goal: produce ONE tiny, low-effort, safe action the user can do now.
-Constraints:
-- The action MUST be safe. If user intent is harmful, do NOT suggest any action.
-- Be concrete and brief (max 2 sentences).
-Output ONLY valid JSON:
-{"strategy": string, "needs_clinician": boolean}
-"""
-
-# -----------------------------------------------------------------------------
-# Fallback static library of micro-steps
-# -----------------------------------------------------------------------------
+# ----------------- micro-steps (kept) -----------------
 MOOD_STEPS: Dict[str, List[str]] = {
     "joy": [
         "Notice one thing you appreciate right now",
         "Send a kind message to someone who helped you recently",
-        "Jot down a small win from today",
-    ],
-    "optimism": [
-        "Write one doable task you can finish in 10 minutes",
-        "Visualize the next tiny milestone and set a 20-minute timer",
-        "Note one resource or person that can help your next step",
     ],
     "sadness": [
         "Drink a glass of water and take 3 slow breaths",
-        "Stand up and stretch your shoulders for 60 seconds",
         "Play a gentle song and sway for one minute",
     ],
     "anger": [
         "Drop your shoulders and unclench your jaw for 30 seconds",
-        "Do 10 slow exhales—longer out-breath than in-breath",
         "Walk away from the screen for 2 minutes and look out a window",
     ],
     "distress": [
         "Place your hand on your chest and breathe slowly for 30 seconds",
         "Look around and name 5 things you can see right now",
-        "Rinse your face with cool water and notice the sensation",
     ],
     "neutral": [
         "Take 3 slow breaths and notice your feet on the floor",
-        "Write one sentence about how you’re feeling",
         "Do a 60-second tidy-up of your desk",
     ],
 }
 
-def _pick_non_repeating(candidates: List[str], history: Optional[List[Dict[str, str]]]) -> str:
+def _pick_non_repeating(
+    candidates: List[str], history: Optional[List[Dict[str, str]]]
+) -> str:
     if not candidates:
         return ""
     last_assistant = ""
     if history:
         for m in reversed(history):
             if m.get("role") == "assistant":
-                last_assistant = m.get("content", "")
+                last_assistant = (m.get("content") or "")
                 break
     pool = [s for s in candidates if s[:30].lower() not in last_assistant.lower()]
     if not pool:
         pool = candidates
     return random.choice(pool)
 
-def _history(history: Optional[List[Dict[str, str]]]) -> str:
-    if not history: 
-        return ""
-    lines = []
-    for m in history[-6:]:
-        lines.append(f"{m['role']}: {m['content']}")
-    return "\n".join(lines)
+# ----------------- text utilities -----------------
+STOPWORDS = set("""
+a an and the of to in for with on at by from up down over under into out about around as is are was were be been being
+I you he she they we it this that these those my your his her their our me him them us
+""".split())
 
-# -----------------------------------------------------------------------------
-# Main function
-# -----------------------------------------------------------------------------
-async def suggest_strategy(
-    *,
-    mood: str,
-    user_text: str,
-    crisis: Crisis,
-    history: Optional[List[Dict[str, str]]] = None,
+def _tokens(text: str) -> List[str]:
+    toks = re.findall(r"[a-zA-Z][a-zA-Z'-]{1,}", (text or "").lower())
+    return [t for t in toks if t not in STOPWORDS]
+
+def _bigrams(tokens: List[str]) -> List[str]:
+    return [f"{tokens[i]} {tokens[i+1]}" for i in range(len(tokens)-1)]
+
+def _expand_synonyms(words: Iterable[str]) -> List[str]:
+    out = set(words)
+    for w in list(words):
+        for k, syns in SYNONYMS.items():
+            if w == k or w in syns:
+                out.add(k)
+                out.update(syns)
+    return list(out)
+
+# ----------------- scoring -----------------
+def _match_score(item: Resource, mood: str, user_text: str) -> float:
+    """
+    Many-words scoring:
+    - mood match (2 pts)
+    - keyword overlap (token/bigram) with phrase boost
+    - small boost for short content (video/article)
+    """
+    score = 0.0
+    mood = (mood or "neutral").lower()
+
+    # mood match
+    moods = set((item.get("moods") or []))
+    if mood in moods:
+        score += 2.0
+
+    # user words (tokens + bigrams) + synonyms
+    toks = _tokens(user_text)
+    grams = set(toks + _bigrams(toks))
+    expanded = set(_expand_synonyms(grams))
+
+    # item keywords
+    kws = set([k.lower() for k in (item.get("keywords") or [])])
+
+    # overlaps
+    overlap = expanded & kws
+    score += len(overlap) * 0.9  # heavier weight
+
+    # phrase bonus (bigrams)
+    phrase_hits = [g for g in grams if " " in g and g in kws]
+    score += len(phrase_hits) * 0.6
+
+    # light length/type boost
+    t = item.get("type")
+    if t == "video":
+        score += 0.4
+    elif t == "article":
+        score += 0.15
+
+    return score
+
+def _diversify(top_items: List[Resource], k: int = 3) -> List[Resource]:
+    want_types = ["video", "article", "book"]
+    out: List[Resource] = []
+    seen = set()
+    # first pass: one of each
+    for t in want_types:
+        for it in top_items:
+            if it.get("type") == t and it["id"] not in seen:
+                out.append(it); seen.add(it["id"]); break
+    # second: fill remaining
+    for it in top_items:
+        if len(out) >= k: break
+        if it["id"] not in seen:
+            out.append(it); seen.add(it["id"])
+    return out[:k]
+
+# ----------------- public APIs -----------------
+async def suggest_resources(
+    *, mood: str, user_text: str, crisis: Crisis, history: Optional[List[Dict[str, str]]] = None,
+    k: int = 3
 ) -> str:
-    """Return a tiny, safe next step. Uses LLM if configured, else local library."""
-    # Hard stop if crisis flagged
+    """Return 1–k curated resource options as JSON string."""
     if crisis != "none":
-        return ""
-
-    # Local guard: if input text itself is unsafe
+        return json.dumps({"options": [], "needs_clinician": True})
     if detect_crisis(user_text) != "none":
-        return ""
+        return json.dumps({"options": [], "needs_clinician": True})
 
-    # If no API key → fallback to static library
-    if not OPENAI_API_KEY:
-        key = (mood or "neutral").lower()
-        steps = MOOD_STEPS.get(key) or MOOD_STEPS["neutral"]
-        return _pick_non_repeating(steps, history)
+    m = (mood or "neutral").lower()
+    scored = [(_match_score(it, m, user_text), it) for it in CATALOG]
+    scored.sort(key=lambda x: x[0], reverse=True)
 
-    # Otherwise → call LLM Strategy Agent
-    user_prompt = {
-        "role": "user",
-        "content": (
-            f"User mood: {mood}\n"
-            f"User text: {user_text}\n"
-            f"History (last turns):\n{_history(history)}\n\n"
-            "Return JSON only."
-        ),
-    }
+    # require some minimal relevance
+    top_items = [it for s, it in scored if s > 0.9][:12]
+    if not top_items:
+        return json.dumps({"options": [], "needs_clinician": False})
 
-    payload = {
-        "model": OPENAI_MODEL,
-        "messages": [
-            {"role": "system", "content": SYSTEM},
-            user_prompt,
+    options = _diversify(top_items, k=max(3, min(k, 5)))
+    return json.dumps({
+        "options": [
+            {
+                "id": it["id"],
+                "type": it["type"],
+                "title": it["title"],
+                "url": it["url"],
+                "duration": it.get("duration", ""),
+                "why": it.get("why", ""),
+                "cautions": it.get("cautions", ""),
+                "source": it.get("source", ""),
+            } for it in options
         ],
-        "temperature": 0.2,
-        "response_format": {"type": "json_object"},
-    }
+        "needs_clinician": False
+    })
 
-    try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            r = await client.post(
-                f"{OPENAI_BASE_URL}/chat/completions",
-                headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
-                json=payload,
-            )
-            r.raise_for_status()
-            data = r.json()
-            text = data["choices"][0]["message"]["content"]
-            obj = json.loads(text)
-            if obj.get("needs_clinician"):
-                return ""
-            return (obj.get("strategy") or "").strip()
-    except Exception:
-        # fallback if API fails
-        key = (mood or "neutral").lower()
-        steps = MOOD_STEPS.get(key) or MOOD_STEPS["neutral"]
-        return _pick_non_repeating(steps, history)
+async def suggest_strategy(
+    *, mood: str, user_text: str, crisis: Crisis, history: Optional[List[Dict[str, str]]] = None
+) -> str:
+    """Return a tiny micro-step string."""
+    if crisis != "none": return ""
+    if detect_crisis(user_text) != "none": return ""
+    key = (mood or "neutral").lower()
+    steps = MOOD_STEPS.get(key) or MOOD_STEPS["neutral"]
+    return _pick_non_repeating(steps, history)
