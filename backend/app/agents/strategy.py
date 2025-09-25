@@ -1,7 +1,7 @@
 # app/agents/strategy.py
 from __future__ import annotations
 import json, random, re
-from typing import List, Dict, Optional, Literal, Iterable
+from typing import List, Dict, Optional, Literal, Iterable, Set
 
 from ..agents.safety import detect_crisis
 from .resources import CATALOG, SYNONYMS, Resource
@@ -49,88 +49,142 @@ def _pick_non_repeating(
     return random.choice(pool)
 
 # ----------------- text utilities -----------------
-STOPWORDS = set("""
-a an and the of to in for with on at by from up down over under into out about around as is are was were be been being
-I you he she they we it this that these those my your his her their our me him them us
-""".split())
+STOPWORDS = set(
+    "a an and the of to in for with on at by from up down over under into out about around as is are was were "
+    "be been being i you he she they we it this that these those my your his her their our me him them us".split()
+)
 
 def _tokens(text: str) -> List[str]:
     toks = re.findall(r"[a-zA-Z][a-zA-Z'-]{1,}", (text or "").lower())
     return [t for t in toks if t not in STOPWORDS]
 
 def _bigrams(tokens: List[str]) -> List[str]:
-    return [f"{tokens[i]} {tokens[i+1]}" for i in range(len(tokens)-1)]
+    return [f"{tokens[i]} {tokens[i+1]}" for i in range(len(tokens) - 1)]
 
-def _expand_synonyms(words: Iterable[str]) -> List[str]:
-    out = set(words)
+def _expand_synonyms(words: Iterable[str]) -> Set[str]:
+    out: Set[str] = set(words)
     for w in list(words):
         for k, syns in SYNONYMS.items():
             if w == k or w in syns:
                 out.add(k)
                 out.update(syns)
-    return list(out)
+    return out
 
-# ----------------- scoring -----------------
+def _kw_weights(item: Resource) -> Dict[str, float]:
+    """
+    Allow 'keyword:weight' in resources (e.g., 'panic attack:2.0').
+    Otherwise each keyword defaults to 1.0.
+    """
+    out: Dict[str, float] = {}
+    for raw in (item.get("keywords") or []):
+        s = raw.lower().strip()
+        if ":" in s:
+            term, w = s.split(":", 1)
+            try:
+                out[term.strip()] = float(w.strip())
+            except Exception:
+                out[term.strip()] = 1.0
+        else:
+            out[s] = 1.0
+    return out
+
+def _light_fuzzy_hit(q: str, k: str) -> bool:
+    """
+    Cheap fuzzy check (no external deps): substring / small edit gap.
+    """
+    if k in q or q in k:
+        return True
+    if len(q) >= 5 and len(k) >= 5 and abs(len(q) - len(k)) <= 1:
+        mismatches = sum(1 for a, b in zip(q, k) if a != b) + abs(len(q) - len(k))
+        return mismatches <= 1
+    return False
+
+# ----------------- scoring + diversification -----------------
 def _match_score(item: Resource, mood: str, user_text: str) -> float:
     """
     Many-words scoring:
-    - mood match (2 pts)
-    - keyword overlap (token/bigram) with phrase boost
-    - small boost for short content (video/article)
+    - mood match (+2)
+    - weighted keyword overlap (tokens + bigrams + title words)
+    - phrase bonus
+    - light fuzzy bonus
+    - small type boosts (video/article)
     """
     score = 0.0
     mood = (mood or "neutral").lower()
 
-    # mood match
-    moods = set((item.get("moods") or []))
-    if mood in moods:
+    # mood boost
+    if mood in set(item.get("moods") or []):
         score += 2.0
 
-    # user words (tokens + bigrams) + synonyms
+    # query terms
     toks = _tokens(user_text)
-    grams = set(toks + _bigrams(toks))
-    expanded = set(_expand_synonyms(grams))
+    grams = _bigrams(toks)
+    q_terms = set(toks + grams)
+    q_terms |= _expand_synonyms(q_terms)
 
-    # item keywords
-    kws = set([k.lower() for k in (item.get("keywords") or [])])
+    # resource terms
+    title_terms = set(_tokens(item.get("title", "")))
+    kws = _kw_weights(item)
+    kw_terms = set(kws.keys())
 
-    # overlaps
-    overlap = expanded & kws
-    score += len(overlap) * 0.9  # heavier weight
+    # direct overlaps (weighted)
+    for term in (q_terms & kw_terms):
+        score += 0.9 * kws.get(term, 1.0)
 
-    # phrase bonus (bigrams)
-    phrase_hits = [g for g in grams if " " in g and g in kws]
-    score += len(phrase_hits) * 0.6
+    # phrase (bigram) bonus
+    for big in [g for g in q_terms if " " in g]:
+        if big in kw_terms:
+            score += 0.6 * kws.get(big, 1.0)
 
-    # light length/type boost
+    # light fuzzy against keywords or title
+    for qt in q_terms:
+        if any(_light_fuzzy_hit(qt, kt) for kt in kw_terms) or any(_light_fuzzy_hit(qt, tt) for tt in title_terms):
+            score += 0.15
+            break
+
+    # type boosts
     t = item.get("type")
     if t == "video":
-        score += 0.4
+        score += 0.35
     elif t == "article":
         score += 0.15
 
     return score
 
-def _diversify(top_items: List[Resource], k: int = 3) -> List[Resource]:
+def _diversify(top_items: List[Resource], k: int = 3, exclude_ids: Set[str] | None = None) -> List[Resource]:
     want_types = ["video", "article", "book"]
     out: List[Resource] = []
-    seen = set()
-    # first pass: one of each
+    seen = set(exclude_ids or [])
+
+    # pass 1: one of each type
     for t in want_types:
         for it in top_items:
-            if it.get("type") == t and it["id"] not in seen:
-                out.append(it); seen.add(it["id"]); break
-    # second: fill remaining
+            if it["id"] in seen:
+                continue
+            if it.get("type") == t:
+                out.append(it)
+                seen.add(it["id"])
+                break
+
+    # pass 2: fill remaining
     for it in top_items:
-        if len(out) >= k: break
+        if len(out) >= k:
+            break
         if it["id"] not in seen:
-            out.append(it); seen.add(it["id"])
+            out.append(it)
+            seen.add(it["id"])
+
     return out[:k]
 
 # ----------------- public APIs -----------------
 async def suggest_resources(
-    *, mood: str, user_text: str, crisis: Crisis, history: Optional[List[Dict[str, str]]] = None,
-    k: int = 3
+    *,
+    mood: str,
+    user_text: str,
+    crisis: Crisis,
+    history: Optional[List[Dict[str, str]]] = None,
+    k: int = 3,
+    exclude_ids: Optional[List[str]] = None,
 ) -> str:
     """Return 1–k curated resource options as JSON string."""
     if crisis != "none":
@@ -142,12 +196,17 @@ async def suggest_resources(
     scored = [(_match_score(it, m, user_text), it) for it in CATALOG]
     scored.sort(key=lambda x: x[0], reverse=True)
 
-    # require some minimal relevance
-    top_items = [it for s, it in scored if s > 0.9][:12]
+    # headroom + minimal relevance threshold
+    top_items = [it for s, it in scored if s > 0.9][:18]
     if not top_items:
         return json.dumps({"options": [], "needs_clinician": False})
 
-    options = _diversify(top_items, k=max(3, min(k, 5)))
+    options = _diversify(
+        top_items,
+        k=max(3, min(k, 5)),
+        exclude_ids=set(exclude_ids or []),
+    )
+
     return json.dumps({
         "options": [
             {
@@ -168,8 +227,10 @@ async def suggest_strategy(
     *, mood: str, user_text: str, crisis: Crisis, history: Optional[List[Dict[str, str]]] = None
 ) -> str:
     """Return a tiny micro-step string."""
-    if crisis != "none": return ""
-    if detect_crisis(user_text) != "none": return ""
+    if crisis != "none":
+        return ""
+    if detect_crisis(user_text) != "none":
+        return ""
     key = (mood or "neutral").lower()
     steps = MOOD_STEPS.get(key) or MOOD_STEPS["neutral"]
     return _pick_non_repeating(steps, history)

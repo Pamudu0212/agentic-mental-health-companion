@@ -11,7 +11,7 @@ export async function sendChat(message, userId = "anon") {
   return r.json(); // returns ChatResponse from backend
 }
 
-// --- NEW: micro-step suggestion ---
+// Micro-step suggestion
 export async function fetchStrategy({ user_text, mood = "neutral", crisis = "none", history = null }) {
   const r = await fetch("/api/suggest/strategy", {
     method: "POST",
@@ -22,12 +22,18 @@ export async function fetchStrategy({ user_text, mood = "neutral", crisis = "non
   return r.json(); // { strategy: "..." }
 }
 
-// --- NEW: external resource options (video/article/book) ---
-export async function fetchResources({ user_text, mood = "neutral", crisis = "none", history = null }) {
+// External resource options (video/article/book)
+export async function fetchResources({
+  user_text,
+  mood = "neutral",
+  crisis = "none",
+  history = null,
+  exclude_ids = [],
+}) {
   const r = await fetch("/api/suggest/resources", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ user_text, mood, crisis, history }),
+    body: JSON.stringify({ user_text, mood, crisis, history, exclude_ids }),
   });
   if (!r.ok) throw new Error(`Resources failed: ${r.status} ${await r.text()}`);
   return r.json(); // { options: [...], needs_clinician: false }

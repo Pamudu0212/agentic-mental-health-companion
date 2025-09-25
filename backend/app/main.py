@@ -244,7 +244,7 @@ class StrategyIn(BaseModel):
     user_text: str
     crisis: Crisis = "none"
     history: list[dict] | None = None
-
+    exclude_ids: list[str] | None = None   # NEW: avoid repeats
 
 @app.post("/api/suggest/strategy")
 async def api_suggest_strategy(inp: StrategyIn):
@@ -256,7 +256,6 @@ async def api_suggest_strategy(inp: StrategyIn):
     )
     return {"strategy": step}
 
-
 @app.post("/api/suggest/resources")
 async def api_suggest_resources(inp: StrategyIn):
     opts = await suggest_resources(
@@ -264,16 +263,15 @@ async def api_suggest_resources(inp: StrategyIn):
         user_text=inp.user_text,
         crisis=inp.crisis,
         history=inp.history,
+        exclude_ids=inp.exclude_ids,  # pass through
     )
     # Always return an object (never "")
     return json.loads(opts) if opts else {"options": [], "needs_clinician": False}
-
 
 # Aliases without /api prefix (to match existing frontend calls if any)
 @app.post("/suggest/strategy")
 async def alias_suggest_strategy(inp: StrategyIn):
     return await api_suggest_strategy(inp)
-
 
 @app.post("/suggest/resources")
 async def alias_suggest_resources(inp: StrategyIn):
