@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import List, Dict, Optional, Literal
 
+# Agents
 from .agents.safety import detect_crisis, detect_crisis_with_moderation
 from .agents.mood import detect_mood
 from .agents.strategy import suggest_strategy
@@ -42,7 +43,7 @@ def validate_and_repair(state: TurnState) -> TurnState:
     """
     Enforce final invariants:
       - If any sign of crisis appears in outputs → crisis mode wins.
-      - Encouragement must mention/align with strategy if we’re not in crisis.
+      - Encouragement should mention/align with strategy if we’re not in crisis.
     """
     if state.crisis != "none":
         state.mood = "unknown"
@@ -79,7 +80,6 @@ async def run_pipeline(
 
     # 1) Safety gate (rules first, LLM moderation if enabled)
     state.crisis = await detect_crisis_with_moderation(state.user_text)
-
     if state.crisis != "none":
         state = validate_and_repair(state)
         return {
@@ -92,7 +92,7 @@ async def run_pipeline(
     # 2) Mood
     state.mood = detect_mood(state.user_text) or "neutral"
 
-    # 3) Strategy
+    # 3) Strategy (tiny safe step; empty string if none)
     state.strategy = await suggest_strategy(
         user_text=state.user_text,
         mood=state.mood,
@@ -111,7 +111,7 @@ async def run_pipeline(
             "crisis_detected": True,
         }
 
-    # 4) Encouragement
+    # 4) Encouragement (mirrors feeling; invites strategy once if present)
     state.encouragement = await encourage(
         user_text=state.user_text,
         mood=state.mood,

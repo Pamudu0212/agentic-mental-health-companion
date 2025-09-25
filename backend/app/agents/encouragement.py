@@ -136,45 +136,4 @@ async def encourage(
     return reply
 
 
-# Optional conversational variant used by some flows (kept for compatibility).
-async def converse(
-    *,
-    user_text: str,
-    mood: str,
-    history: Optional[List[Dict[str, str]]] = None,
-    crisis: Crisis = "none",
-) -> str:
-    """
-    Produce 1–2 sentences: reflect the feeling + ask one gentle open question.
-    No coping steps, no lists, no emojis.
-    """
-    if crisis != "none":
-        return CRISIS_MESSAGE
-    if detect_crisis(user_text) != "none":
-        return CRISIS_MESSAGE
-
-    sys = (
-        "You are a warm, non-clinical companion. Respond in 1–2 short sentences. "
-        "First reflect/validate the user's feeling. Then ask ONE open, gentle question to learn more. "
-        "No advice, no coping steps, no lists, no emojis. Output plain text."
-    )
-
-    messages = [
-        {"role": "system", "content": sys},
-        {"role": "user", "content": f"User said: {user_text}\nMood guess: {mood or 'neutral'}"},
-    ]
-
-    try:
-        # Use regular chat (plain text) for this small variant
-        headers = {"Authorization": f"Bearer {OPENAI_API_KEY}"} if OPENAI_API_KEY else {}
-        payload = {"model": OPENAI_MODEL, "messages": messages, "temperature": 0.6, "top_p": 0.9}
-        async with httpx.AsyncClient(timeout=18.0) as client:
-            r = await client.post(f"{OPENAI_BASE_URL}/chat/completions", headers=headers, json=payload)
-            r.raise_for_status()
-            data = r.json()
-            out = (data["choices"][0]["message"]["content"] or "").strip()
-        if len(out.split()) > 70:
-            out = "Thanks for sharing that. What feels most present for you right now?"
-        return out
-    except Exception:
-        return random.choice(FALLBACKS)
+# Optional conversat
