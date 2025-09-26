@@ -1,6 +1,11 @@
 // src/App.jsx
 import { useEffect, useMemo, useRef, useState } from "react";
 import { sendChat } from "./api";
+import TopBar from "./TopBar";
+import { useAuth } from "./useAuth";
+
+// ---- optional: set to true if you want to require login before chatting
+const requireLogin = false;
 
 function useUserId() {
   return useMemo(() => {
@@ -69,7 +74,7 @@ function Insights({ latest }) {
             </p>
           </section>
 
-          <p className="text-xs text-slate-500 mt-auto pt-2">
+        <p className="text-xs text-slate-500 mt-auto pt-2">
             These insights are assistive, not clinical guidance.
           </p>
         </div>
@@ -107,6 +112,7 @@ function Bubble({ role, children }) {
 }
 
 export default function App() {
+  const { user, loading: authLoading, login } = useAuth();
   const userId = useUserId();
   const [input, setInput] = useState("");
   const [msgs, setMsgs] = useState([]); // {role, content}
@@ -149,6 +155,16 @@ export default function App() {
     const text = input.trim();
     if (!text || loading) return;
 
+    // If you want to force login before sending:
+    if (requireLogin && !authLoading && !user) {
+      // gentle nudge instead of sending
+      setMsgs((m) => [
+        ...m,
+        { role: "assistant", content: "Please sign in with Google to continue the conversation." },
+      ]);
+      return;
+    }
+
     setMsgs((m) => [...m, { role: "user", content: text }]);
     setInput("");
 
@@ -185,6 +201,9 @@ export default function App() {
 
   return (
     <div className="min-h-screen w-full overflow-x-hidden bg-gradient-to-br from-emerald-50 via-teal-50 to-sky-50">
+      {/* Top bar with Google login */}
+      <TopBar />
+
       <div className="mx-auto max-w-7xl px-4 sm:px-6 py-6">
         <header className="mb-4">
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-slate-800">
@@ -193,6 +212,13 @@ export default function App() {
           <p className="text-sm text-slate-600 mt-1">
             This isn’t a medical service. If you’re in danger, contact local emergency services.
           </p>
+
+          {!authLoading && !user && !requireLogin && (
+            <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 text-amber-800 text-sm px-3 py-2">
+              You’re not signed in — messages will be saved as <b>anonymous</b>.{" "}
+              <button className="underline" onClick={login}>Login with Google</button> to link them to your account.
+            </div>
+          )}
         </header>
 
         <div className="grid min-h-[calc(100vh-7.5rem)] grid-cols-1 gap-6 lg:grid-cols-3">
@@ -263,6 +289,11 @@ export default function App() {
             <div className="text-[11px] text-slate-500 px-6 pb-3">
               API via Vite proxy: <code>/api</code> → <code>http://127.0.0.1:8000</code> · user:{" "}
               <code className="select-all">{userId}</code>
+              {!authLoading && user ? (
+                <>
+                  {" "}| signed in as <code>{user.email}</code>
+                </>
+              ) : null}
             </div>
           </section>
 
