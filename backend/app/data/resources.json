@@ -94,8 +94,8 @@
     "id": "yt-guided-imagery-3m",
     "type": "video",
     "title": "Guided imagery — calm place visualization (3 min)",
-    "url": "https://www.youtube.com/watch?v=LmAOY5bC3Jk",
-    "duration": "3m",
+    "url": "https://www.youtube.com/watch?v=ZEYuSRHgmCg",
+    "duration": "7m",
     "moods": [
       "anxiety",
       "distress",
@@ -263,7 +263,7 @@
     "id": "article-cdc-sleep-basics",
     "type": "article",
     "title": "Basics of Sleep and Health (CDC)",
-    "url": "https://www.cdc.gov/sleep/about_sleep/index.html",
+    "url": "https://www.cdc.gov/sleep/about/index.html",
     "duration": "6m read",
     "moods": [
       "sleep",
@@ -283,7 +283,7 @@
     "id": "article-test-anxiety-canada",
     "type": "article",
     "title": "Test Anxiety — quick tips",
-    "url": "https://anxietycanada.com/articles/test-anxiety/",
+    "url": "https://www.psychologytoday.com/us/blog/in-practice/201502/test-anxiety-quick-tips?msockid=20c64c1045546c1b33d05f9344976dfd",
     "duration": "6m read",
     "moods": [
       "anxiety",
@@ -367,7 +367,7 @@
     "id": "article-ggsc-3-good-things",
     "type": "article",
     "title": "Three Good Things (gratitude practice)",
-    "url": "https://ggia.berkeley.edu/practice/three_good_things",
+    "url": "https://ggia.berkeley.edu/practice/three-good-things",
     "duration": "4m read",
     "moods": [
       "sadness",
@@ -386,8 +386,8 @@
   {
     "id": "pdf-ggsc-random-kindness",
     "type": "book",
-    "title": "Random Acts of Kindness — quick ideas (PDF)",
-    "url": "https://ggia.berkeley.edu/assets/practice_pdfs/Random_Acts_of_Kindness.pdf",
+    "title": "Kindness Art for Kids",
+    "url": "https://ggia.berkeley.edu/practice/kindness_art_for_kids",
     "duration": "2 pages",
     "moods": [
       "sadness",
@@ -406,9 +406,9 @@
   {
     "id": "book-tiny-habits-excerpt",
     "type": "book",
-    "title": "Tiny Habits — Free First Chapter",
-    "url": "https://tinyhabits.com/firstchapter/",
-    "duration": "10 pages",
+    "title": "Mini Habits",
+    "url": "https://minihabits.com/wp-content/uploads/2016/05/Mini-Habits-Free-Chapter.pdf",
+    "duration": "18 pages",
     "moods": [
       "motivation",
       "neutral",
@@ -422,7 +422,7 @@
     ],
     "why": "Shows how starting small can rebuild momentum and hope.",
     "cautions": "",
-    "source": "BJ Fogg"
+    "source": "minihabits.com"
   },
   {
     "id": "book-atomic-habits",
@@ -449,7 +449,7 @@
     "id": "article-mindtools-beat-procrastination",
     "type": "article",
     "title": "How to Beat Procrastination (MindTools)",
-    "url": "https://www.mindtools.com/ak3jwp1/overcoming-procrastination",
+    "url": "https://www.mindtools.com/a5plzk8/how-to-stop-procrastinating",
     "duration": "7m read",
     "moods": [
       "motivation",
@@ -486,11 +486,11 @@
     "source": "APA"
   },
   {
-    "id": "yt-desk-stretch-3m",
+    "id": "yt-desk-stretch-9m",
     "type": "video",
-    "title": "Gentle desk stretch — neck & shoulders (3 min)",
-    "url": "https://www.youtube.com/watch?v=qHJ1zH1r7Cw",
-    "duration": "3m",
+    "title": "Gentle desk stretch — neck & shoulders (9 min)",
+    "url": "https://www.youtube.com/watch?v=uruvYGRJ_QA",
+    "duration": "9m",
     "moods": [
       "stress",
       "anger",
@@ -530,7 +530,7 @@
     "id": "article-harvard-relaxation-techniques",
     "type": "article",
     "title": "Relaxation techniques: Breath, body scan, and more",
-    "url": "https://www.health.harvard.edu/mind-and-mood/relaxation-techniques-breathing-counting",
+    "url": "https://www.health.harvard.edu/mind-and-mood/six-relaxation-techniques-to-reduce-stress",
     "duration": "6m read",
     "moods": [
       "stress",
@@ -572,7 +572,7 @@
     "id": "pdf-thought-record",
     "type": "article",
     "title": "Thought record — simple worksheet (PDF)",
-    "url": "https://www.getselfhelp.co.uk/docs/ThoughtRecordSheet7col.pdf",
+    "url": "https://www.choosingtherapy.com/therapy-worksheets/thought-record/",
     "duration": "1 page",
     "moods": [
       "sadness",
@@ -588,13 +588,13 @@
     ],
     "why": "Writing can slow thoughts and create distance.",
     "cautions": "Do it gently; stop if too intense.",
-    "source": "GetSelfHelp"
+    "source": "ChoosingTherapy"
   },
   {
-    "id": "article-cbt-psycom",
+    "id": "article-cbt-hh",
     "type": "article",
-    "title": "What is Cognitive Behavioral Therapy? (Psycom)",
-    "url": "https://www.psycom.net/therapy/cognitive-behavioral-therapy",
+    "title": "What is Cognitive Behavioral Therapy?",
+    "url": "https://www.health.harvard.edu/blog/what-is-cognitive-behavioral-therapy-202406053047",
     "duration": "7m read",
     "moods": [
       "anxiety",
@@ -609,13 +609,13 @@
     ],
     "why": "Plain‑English overview of CBT principles.",
     "cautions": "",
-    "source": "Psycom"
+    "source": "HarwardHealth"
   },
   {
     "id": "article-gottman-soft-startup",
     "type": "article",
     "title": "Soft Start‑Up for Tough Talks (Gottman Institute)",
-    "url": "https://www.gottman.com/blog/the-soft-start-up/",
+    "url": "https://www.gottman.com/blog/softening-startup/",
     "duration": "5m read",
     "moods": [
       "anger",
@@ -636,7 +636,7 @@
     "id": "article-mentalhealthuk-loneliness",
     "type": "article",
     "title": "Loneliness: tips for coping",
-    "url": "https://mentalhealth-uk.org/help-and-information/mental-health-a-z/loneliness/",
+    "url": "https://www.verywellmind.com/how-to-cope-with-loneliness-3144939",
     "duration": "6m read",
     "moods": [
       "sadness",
@@ -651,7 +651,7 @@
     ],
     "why": "Simple ideas to reduce isolation and reach out.",
     "cautions": "",
-    "source": "Mental Health UK"
+    "source": "verywellMind"
   },
   {
     "id": "article-mayo-exercise-depression",
@@ -678,7 +678,7 @@
     "id": "yt-walk-10m",
     "type": "video",
     "title": "10‑minute gentle indoor walk",
-    "url": "https://www.youtube.com/watch?v=wx9V3lKfBqU",
+    "url": "https://www.youtube.com/watch?v=KyCXFrE9LQ4",
     "duration": "10m",
     "moods": [
       "neutral",
@@ -699,7 +699,7 @@
     "id": "article-mind-uk-panic",
     "type": "article",
     "title": "Self‑care for panic attacks",
-    "url": "https://www.mind.org.uk/information-support/types-of-mental-health-problems/anxiety-and-panic-attacks/self-care-for-panic-attacks/",
+    "url": "https://www.healthline.com/health/anxiety/panic-attack-self-care-strategies",
     "duration": "7m read",
     "moods": [
       "anxiety",
@@ -714,7 +714,7 @@
     ],
     "why": "Practical steps to ride out a panic surge.",
     "cautions": "",
-    "source": "Mind (UK)"
+    "source": "healthline"
   },
   {
     "id": "article-ggsc-journal-gratitude",
@@ -740,7 +740,7 @@
     "id": "article-psychcentral-self-soothe",
     "type": "article",
     "title": "Self‑soothing techniques for adults",
-    "url": "https://psychcentral.com/health/self-soothing",
+    "url": "https://positivepsychology.com/self-soothing/",
     "duration": "6m read",
     "moods": [
       "anxiety",
@@ -755,13 +755,13 @@
     ],
     "why": "A menu of simple self‑soothing practices.",
     "cautions": "",
-    "source": "PsychCentral"
+    "source": "PositivePsychology"
   },
   {
     "id": "yt-square-breath-1m",
     "type": "video",
     "title": "Square breathing — 60 seconds",
-    "url": "https://www.youtube.com/watch?v=nj9fM5Q7Gq8",
+    "url": "https://www.youtube.com/watch?v=bF_1ZiFta-E",
     "duration": "1m",
     "moods": [
       "anxiety",
@@ -781,7 +781,7 @@
     "id": "yt-coherent-breath-6m",
     "type": "video",
     "title": "Coherent breathing (5‑6 breaths/min)",
-    "url": "https://www.youtube.com/watch?v=8VwufJrU39Q",
+    "url": "https://www.youtube.com/watch?v=fjq7DeP2EWs",
     "duration": "6m",
     "moods": [
       "anxiety",
@@ -801,8 +801,8 @@
     "id": "book-feeling-good-burns",
     "type": "book",
     "title": "Feeling Good (David D. Burns) — overview",
-    "url": "https://feelinggood.com/",
-    "duration": "400 pages",
+    "url": "https://www.samuelthomasdavies.com/book-summaries/self-help/feeling-good/",
+    "duration": "5min",
     "moods": [
       "sadness",
       "anxiety"
@@ -842,7 +842,7 @@
     "id": "book-anxiety-phobia-bourne",
     "type": "book",
     "title": "The Anxiety & Phobia Workbook (Bourne)",
-    "url": "https://www.newharbinger.com/9781684034857/the-anxiety-and-phobia-workbook/",
+    "url": "https://www.amazon.com/Anxiety-Phobia-Workbook-Edmund-Bourne/dp/1684034833",
     "duration": "488 pages",
     "moods": [
       "anxiety",
@@ -883,7 +883,7 @@
     "id": "yt-sleep-stretch-10m",
     "type": "video",
     "title": "10‑minute bedtime stretch",
-    "url": "https://www.youtube.com/watch?v=8G1KjW9HqzQ",
+    "url": "https://www.youtube.com/watch?v=NW72Q7Z2SD0",
     "duration": "10m",
     "moods": [
       "sleep",
@@ -922,7 +922,7 @@
     "id": "article-campaigntoendloneliness-tips",
     "type": "article",
     "title": "Practical tips for loneliness",
-    "url": "https://www.campaigntoendloneliness.org/advice-support/",
+    "url": "https://www.mind.org.uk/information-support/tips-for-everyday-living/loneliness/tips-to-manage-loneliness/",
     "duration": "6m read",
     "moods": [
       "sadness",
@@ -936,13 +936,13 @@
     ],
     "why": "Small actions to rebuild connection.",
     "cautions": "",
-    "source": "Campaign to End Loneliness"
+    "source":"minduk"
   },
   {
     "id": "yt-2min-reset",
     "type": "video",
     "title": "Two‑minute reset: breathe, notice, release",
-    "url": "https://www.youtube.com/watch?v=Sx4y7WgZ6J8",
+    "url": "https://www.youtube.com/watch?v=vLhOGEnEedk",
     "duration": "2m",
     "moods": [
       "neutral",
@@ -1004,7 +1004,7 @@
     "id": "yt-anger-cooldown-5m",
     "type": "video",
     "title": "Cool down anger — 5 minute guided",
-    "url": "https://www.youtube.com/watch?v=O4w3W6QfZ6I",
+    "url": "https://www.youtube.com/watch?v=MDqsn2oiYig",
     "duration": "5m",
     "moods": [
       "anger",
@@ -1024,7 +1024,7 @@
     "id": "article-mind-uk-grounding",
     "type": "article",
     "title": "Grounding techniques you can try now",
-    "url": "https://www.mind.org.uk/information-support/ways-to-cope/grounding-exercises/",
+    "url": "https://blog.calm.com/blog/grounding-techniques",
     "duration": "6m read",
     "moods": [
       "anxiety",
@@ -1037,13 +1037,13 @@
     ],
     "why": "A menu of grounding options from Mind (UK).",
     "cautions": "",
-    "source": "Mind (UK)"
+    "source": "Calm"
   },
   {
     "id": "article-ggsc-values-clarify",
     "type": "article",
     "title": "Clarifying your values (worksheet)",
-    "url": "https://ggia.berkeley.edu/practice/identifying_your_values",
+    "url": "https://www.therapistaid.com/therapy-worksheet/values-clarification",
     "duration": "10m",
     "moods": [
       "neutral",
@@ -1058,13 +1058,13 @@
     ],
     "why": "Values exercises can orient next small steps.",
     "cautions": "",
-    "source": "Greater Good Science Center"
+    "source": "therapistAid"
   },
   {
     "id": "yt-visual-focus-2m",
     "type": "video",
     "title": "2‑minute visual focus reset",
-    "url": "https://www.youtube.com/watch?v=KxwYqf1b2i0",
+    "url": "https://www.youtube.com/watch?v=QtE00VP4W3Y",
     "duration": "2m",
     "moods": [
       "anxiety",
@@ -1085,7 +1085,7 @@
     "id": "article-mindful-walking",
     "type": "article",
     "title": "How to practice mindful walking",
-    "url": "https://www.mindful.org/meditation/mindfulness-getting-started/how-to-practice-mindful-walking/",
+    "url": "https://www.mindful.org/daily-mindful-walking-practice/",
     "duration": "5m read",
     "moods": [
       "stress",
@@ -1106,7 +1106,7 @@
     "id": "article-oxford-study-tips",
     "type": "article",
     "title": "Study tips to reduce stress (Oxford)",
-    "url": "https://www.ox.ac.uk/students/welfare/television/study-tips",
+    "url": "https://oxfordlearning.com/study-tips-for-exams-study-smarter-not-harder/",
     "duration": "5m read",
     "moods": [
       "anxiety",
