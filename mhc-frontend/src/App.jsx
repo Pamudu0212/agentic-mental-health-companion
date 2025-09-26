@@ -1,7 +1,7 @@
 // src/App.jsx
 import { useEffect, useMemo, useRef, useState } from "react";
-import { sendChat, fetchResources } from "./api";
-import CrisisCta from "./components/CrisisCta.tsx"; // NEW: use your CTA component
+import { sendChat, fetchResources, fetchStrategy } from "./api";
+import CrisisCta from "./components/CrisisCta.tsx";
 
 // ---------- utils ----------
 function useUserId() {
@@ -108,7 +108,7 @@ function Insights({ latest, resources, loadingResources, needsClinician, crisisL
               Helpful resources
             </div>
 
-            {/* NEW: crisis-only government CTA */}
+            {/* Crisis-only government CTA */}
             {needsClinician && crisisLink ? (
               <div className="space-y-2">
                 <p className="text-sm text-slate-700">
@@ -176,7 +176,7 @@ export default function App() {
   const [resources, setResources] = useState([]); // [{id,type,title,url,...}]
   const [loadingResources, setLoadingResources] = useState(false);
 
-  // NEW: capture backend crisis flags
+  // Capture backend crisis flags
   const [needsClinician, setNeedsClinician] = useState(false);
   const [crisisLink, setCrisisLink] = useState(null);
 
@@ -228,16 +228,17 @@ export default function App() {
     setCrisisLink(null);
 
     try {
-      // 1) chat conversation
+      // 1) Chat with backend
       const res = await sendChat(text, userId);
       setMsgs((m) => [...m, { role: "assistant", content: res.encouragement }]);
 
       const mood = res.mood || "neutral";
       const crisisDetected = !!res.crisis_detected;
 
+      // Set initial latest (strategy will be filled after fetchStrategy)
       setLatest({
         mood,
-        strategy: res.strategy,
+        strategy: res.strategy || "",
         safety: res.safety ?? {
           level: crisisDetected ? "crisis_self" : "safe",
           reason: crisisDetected ? "Crisis mode" : "No crisis indicators found",
@@ -245,9 +246,20 @@ export default function App() {
         analyzing: false,
       });
 
-      // 2) fetch resource options (or crisis link)
+      // 2) Fetch micro-step strategy (this was missing)
       try {
-        const r = await fetchResources({ user_text: text, mood, crisis: "none" });
+        const strat = await fetchStrategy({ user_text: text, mood, crisis: "none", history: null });
+        setLatest((prev) => ({
+          ...(prev || {}),
+          strategy: strat?.strategy || prev?.strategy || "",
+        }));
+      } catch {
+        // keep strategy as-is (possibly empty)
+      }
+
+      // 3) Fetch external resources OR crisis link
+      try {
+        const r = await fetchResources({ user_text: text, mood, crisis: "none", history: null, exclude_ids: [] });
         setResources(r?.options || []);
         setNeedsClinician(!!r?.needs_clinician);
         setCrisisLink(r?.crisis_link ?? null);
@@ -329,19 +341,6 @@ export default function App() {
                 Send
               </button>
             </form>
-
-            {showJump && (
-              <button
-                onClick={() => {
-                  setAutoStick(true);
-                  scrollToBottom("smooth");
-                }}
-                className="absolute left-1/2 -translate-x-1/2 bottom-20 rounded-full bg-white/90 border border-emerald-200 px-3 py-1 text-sm shadow hover:bg-white"
-                aria-label="Jump to latest"
-              >
-                Jump to latest ↓
-              </button>
-            )}
 
             <div className="text-[11px] text-slate-500 px-6 pb-3">
               API via Vite proxy: <code>/api</code> → <code>http://127.0.0.1:8000</code> · user:{" "}
