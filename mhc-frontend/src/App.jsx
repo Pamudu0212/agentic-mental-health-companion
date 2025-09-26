@@ -97,18 +97,27 @@ function Insights({ latest, resources, loadingResources, needsClinician, crisisL
             </div>
           </section>
 
-          {/* Suggested step + source */}
+          {/* Suggested step + WHY + source */}
           <section>
             <div className="text-[11px] uppercase tracking-wide text-slate-500">Suggested next step</div>
             {analyzing ? (
               <p className="mt-1 text-slate-700">Preparing a gentle suggestion…</p>
             ) : strategy ? (
               <div className="mt-1">
+                {/* Step text (string for compat) */}
                 <p className="text-slate-700 whitespace-pre-wrap break-words leading-relaxed">
                   {strategy}
                 </p>
 
-                {/* Show a compact “View source” button if backend gave us one */}
+                {/* Why this helps (if backend provided it) */}
+                {latest?.strategy_why && (
+                  <p className="mt-2 text-[13px] text-slate-600">
+                    <span className="font-medium text-slate-700">Why this helps: </span>
+                    {latest.strategy_why}
+                  </p>
+                )}
+
+                {/* View source button (if available) */}
                 {latest?.advice_given && latest?.strategy_source?.url ? (
                   <a
                     href={latest.strategy_source.url}
@@ -194,11 +203,10 @@ export default function App() {
   const [input, setInput] = useState("");
   const [msgs, setMsgs] = useState([]); // {role, content}
   const [loading, setLoading] = useState(false);
-  const [latest, setLatest] = useState(null); // {mood, strategy, advice_given, strategy_source, safety, analyzing}
+  const [latest, setLatest] = useState(null); // {mood, strategy, advice_given, strategy_source, strategy_why, safety, analyzing}
   const [resources, setResources] = useState([]); // [{id,type,title,url,...}]
   const [loadingResources, setLoadingResources] = useState(false);
 
-  // Capture backend crisis flags
   const [needsClinician, setNeedsClinician] = useState(false);
   const [crisisLink, setCrisisLink] = useState(null);
 
@@ -250,7 +258,7 @@ export default function App() {
     setCrisisLink(null);
 
     try {
-      // 1) Chat with backend (now returns strategy, advice_given, strategy_source)
+      // 1) Chat with backend (now includes strategy_why + strategy_source)
       const res = await sendChat(text, userId);
       setMsgs((m) => [...m, { role: "assistant", content: res.encouragement }]);
 
@@ -262,6 +270,8 @@ export default function App() {
         strategy: res.strategy || "",
         advice_given: !!res.advice_given,
         strategy_source: res.strategy_source || null,
+        strategy_why: res.strategy_why || "",
+        strategy_label: res.strategy_label || "",
         safety: res.safety ?? {
           level: crisisDetected ? "crisis_self" : "safe",
           reason: crisisDetected ? "Crisis mode" : "No crisis indicators found",
@@ -269,7 +279,7 @@ export default function App() {
         analyzing: false,
       });
 
-      // 2) Fetch external resources OR crisis link (unchanged)
+      // 2) External resources / crisis link
       try {
         const r = await fetchResources({ user_text: text, mood, crisis: "none", history: null, exclude_ids: [] });
         setResources(r?.options || []);

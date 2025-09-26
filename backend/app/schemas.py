@@ -9,8 +9,8 @@ class Safety(BaseModel):
 
 class StrategySource(BaseModel):
     # Source metadata for the suggested strategy (if any)
-    name: Optional[str] = ""   # e.g., "NHS", "NICE", "WHO"
-    url: Optional[str] = ""    # canonical source page
+    name: Optional[str] = None   # e.g., "NHS", "NICE", "WHO"
+    url: Optional[str] = None    # canonical source page
 
 class ChatRequest(BaseModel):
     user_text: str = Field(..., min_length=1, max_length=4000)
@@ -22,7 +22,13 @@ class ChatResponse(BaseModel):
     encouragement: str
     crisis_detected: bool
     safety: Safety
-    # NEW: whether we intentionally offered a concrete micro-step this turn
+
+    # Whether we intentionally offered a concrete micro-step this turn
     advice_given: bool = False
-    # NEW: provenance for the strategy so the UI can show a "View source" button
+
+    # Provenance for the strategy so the UI can show a "View source" button
     strategy_source: Optional[StrategySource] = None
+
+    # Extra context for UI: brief rationale & human-friendly label of the step
+    strategy_why: Optional[str] = None
+    strategy_label: Optional[str] = None
