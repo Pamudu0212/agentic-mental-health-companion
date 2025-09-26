@@ -1,15 +1,17 @@
 # app/orchestrator.py
 from __future__ import annotations
+
+import re
 from dataclasses import dataclass
 from typing import List, Dict, Optional, Literal
-import re
 
 # Agents
 from .agents.safety import detect_crisis, detect_crisis_with_moderation
 from .agents.mood import detect_mood
-from .agents.encouragement import converse
-from .agents.coach_agent import coach_draft
+from .agents.encouragement import encourage, converse
+from .agents.coach_agent import coach_draft  # optional, kept
 from .agents.critic_agent import critic_fix
+from .agents.skillcards import best_strategy_entry  # DB-backed retrieval w/ why + source
 
 # Crisis types
 Crisis = Literal["none", "self_harm", "other_harm"]
@@ -23,15 +25,21 @@ CRISIS_MESSAGE = (
 @dataclass
 class TurnState:
     user_text: str
-    history: Optional[List[Dict[str, str]]]
+    history: Optional[List[Dict[str, str]]]  # [{role, content}]
     crisis: Crisis = "none"
-    mood: str = "neutral"
-    strategy: str = ""
+    mood: str = "neutral"        # anger|joy|optimism|sadness|neutral|unknown
+    strategy: str = ""           # the step text (for backward-compat)
     encouragement: str = ""
-    advice_given: bool = False  # tells the UI whether we intentionally gave a step
+    advice_given: bool = False
 
-# ---------- Safety & heuristics ----------
-UNSAFE_HINTS = ("kill","suicide","stab","shoot","harm","hurt","explode","bomb","attack","poison","unalive")
+# -----------------------
+# Validation / Reconcile
+# -----------------------
+
+UNSAFE_HINTS = (
+    "kill", "suicide", "stab", "shoot", "harm", "hurt", "explode", "bomb",
+    "attack", "poison", "unalive",
+)
 
 def _likely_unsafe(s: str) -> bool:
     t = (s or "").lower()
@@ -47,15 +55,17 @@ RE_DISTRESS = re.compile(
     re.I,
 )
 
-SUPPORT_MOODS  = {"sadness","distress","anger"}
-POSITIVE_MOODS = {"joy","optimism"}
+SUPPORT_MOODS  = {"sadness", "distress", "anger"}
+POSITIVE_MOODS = {"joy", "optimism"}
 
 def _safety_summary(state: TurnState) -> dict:
-    """Calmer label: 'watch' only if the *message* shows distress language or moderation flagged crisis."""
     txt = (state.user_text or "")
-    if state.crisis == "self_harm":  return {"level": "crisis_self",  "reason": "Self-harm risk detected"}
-    if state.crisis == "other_harm": return {"level": "crisis_others","reason": "Risk to others detected"}
-    if RE_DISTRESS.search(txt):      return {"level": "watch",       "reason": "Tense or distressed language"}
+    if state.crisis == "self_harm":
+        return {"level": "crisis_self",  "reason": "Self-harm risk detected"}
+    if state.crisis == "other_harm":
+        return {"level": "crisis_others", "reason": "Risk to others detected"}
+    if RE_DISTRESS.search(txt):
+        return {"level": "watch", "reason": "Tense or distressed language"}
     return {"level": "safe", "reason": "No crisis indicators found"}
 
 def validate_and_repair(state: TurnState) -> TurnState:
@@ -76,31 +86,26 @@ def validate_and_repair(state: TurnState) -> TurnState:
         state.advice_given = False
         return state
 
-    # If we intentionally provided advice, ensure the strategy is echoed
-    if state.advice_given and state.strategy and state.strategy[:20].lower() not in state.encouragement.lower():
+    # If we intentionally provided advice, echo the step once inside the message (lightly)
+    if (
+        state.advice_given
+        and state.strategy
+        and state.strategy[:20].lower() not in (state.encouragement or "").lower()
+    ):
         state.encouragement = (
-            f"{state.encouragement.rstrip()}\n\n"
-            f"One tiny, safe step you could try now: {state.strategy}"
+            f"{(state.encouragement or '').rstrip()}\n\n"
+            f"Why this:\n- {state.strategy}"
         )
-    # If we did NOT intend to give advice, make sure strategy is empty
+
+    # If not giving advice, make sure strategy string is empty
     if not state.advice_given:
         state.strategy = ""
 
     return state
 
 def _should_offer_step(user_text: str, mood: str) -> bool:
-    """
-    Stricter gate: suggest a step ONLY when at least one primary trigger is true:
-      - explicit help/advice request
-      - a real problem question (not name/smalltalk)
-      - distress keywords in the message
-    Mood can *support* the decision, but mood alone is not enough.
-    Positive moods require explicit help to offer steps.
-    Short/low-content messages don't trigger steps.
-    """
-    t = user_text.lower()
+    t = (user_text or "").lower()
 
-    # Ignore smalltalk/identity
     if RE_ASK_NAME.search(t) or RE_SMALL.search(t):
         return False
 
@@ -108,15 +113,12 @@ def _should_offer_step(user_text: str, mood: str) -> bool:
     q_about  = ("?" in t or bool(RE_QWORD.search(t))) and not RE_ASK_NAME.search(t)
     distress = bool(RE_DISTRESS.search(t))
     primary  = helpy or q_about or distress
-
     if not primary:
         return False
 
-    mood_l = (mood or "").lower()
-    if mood_l in POSITIVE_MOODS and not helpy:
+    if (mood or "").lower() in POSITIVE_MOODS and not helpy:
         return False
 
-    # Avoid triggering on very short / low-content turns
     if len(t.split()) < 5:
         return False
 
@@ -125,10 +127,18 @@ def _should_offer_step(user_text: str, mood: str) -> bool:
 # -----------------------
 # Orchestration
 # -----------------------
-async def run_pipeline(user_text: str, history: Optional[List[Dict[str, str]]] = None):
+async def run_pipeline(
+    user_text: str,
+    history: Optional[List[Dict[str, str]]] = None,
+):
     state = TurnState(user_text=user_text, history=history or [])
 
-    # 1) Safety gate (rules + LLM moderation)
+    # These enrich the response for the UI:
+    strategy_source: Optional[Dict[str, str]] = None
+    strategy_why: str = ""
+    strategy_label: str = ""
+
+    # 1) Safety gate
     state.crisis = await detect_crisis_with_moderation(state.user_text)
     if state.crisis != "none":
         state = validate_and_repair(state)
@@ -139,24 +149,58 @@ async def run_pipeline(user_text: str, history: Optional[List[Dict[str, str]]] =
             "crisis_detected": True,
             "safety": _safety_summary(state),
             "advice_given": state.advice_given,
+            "strategy_source": strategy_source,
+            "strategy_why": strategy_why,
+            "strategy_label": strategy_label,
         }
 
     # 2) Mood
     state.mood = detect_mood(state.user_text) or "neutral"
 
-    # 3) Decide: conversation (Encouragement) vs advice (Coach)
+    # 3) Decide: conversation vs advice
     if _should_offer_step(state.user_text, state.mood):
-        draft = await coach_draft(user_text=state.user_text, mood=state.mood, history=state.history)
-        state.strategy = draft.get("strategy") or ""
-        draft_msg = draft.get("message") or ""
-        state.advice_given = True
+        entry = best_strategy_entry(
+            user_text=state.user_text,
+            mood=state.mood,
+            history=state.history,
+        )
+        if entry:
+            state.strategy = entry["step"]
+            state.advice_given = True
+            strategy_why = entry.get("why", "") or ""
+            strategy_label = entry.get("label", "") or ""
+            strategy_source = {
+                "name": entry.get("source_name", "") or "",
+                "url": entry.get("source_url", "") or "",
+            }
+            draft_msg = (
+                "Based on what you shared, a tiny next step you could try is:\n\n"
+                f"- {state.strategy}\n\n"
+                "If that doesn’t fit, tell me what feels hard and we’ll adjust it together."
+            )
+        else:
+            draft_msg = await converse(
+                user_text=state.user_text,
+                mood=state.mood,
+                history=state.history,
+                crisis=state.crisis,
+            )
+            state.strategy = ""
+            state.advice_given = False
+            strategy_source = None
     else:
-        draft_msg = await converse(user_text=state.user_text, mood=state.mood, history=state.history, crisis=state.crisis)
+        draft_msg = await converse(
+            user_text=state.user_text,
+            mood=state.mood,
+            history=state.history,
+            crisis=state.crisis,
+        )
         state.strategy = ""
         state.advice_given = False
+        strategy_source = None
 
-    # 4) Defense-in-depth and polish
-    if detect_crisis(draft_msg) != "none":
+    # Defense: if strategy itself looks unsafe
+    if detect_crisis(state.strategy) != "none":
         state.crisis = "self_harm"
         state = validate_and_repair(state)
         return {
@@ -166,8 +210,21 @@ async def run_pipeline(user_text: str, history: Optional[List[Dict[str, str]]] =
             "crisis_detected": True,
             "safety": _safety_summary(state),
             "advice_given": state.advice_given,
+            "strategy_source": strategy_source,
+            "strategy_why": strategy_why,
+            "strategy_label": strategy_label,
         }
 
+    # 4) Encouragement
+    state.encouragement = await encourage(
+        user_text=state.user_text,
+        mood=state.mood,
+        strategy=state.strategy,
+        crisis=state.crisis,
+        history=state.history,
+    )
+
+    # 5) Critic pass
     crit = await critic_fix(draft_msg, state.strategy if state.advice_given else "")
     if not crit.get("ok"):
         state.crisis = "self_harm"
@@ -179,13 +236,15 @@ async def run_pipeline(user_text: str, history: Optional[List[Dict[str, str]]] =
             "crisis_detected": True,
             "safety": _safety_summary(state),
             "advice_given": state.advice_given,
+            "strategy_source": strategy_source,
+            "strategy_why": strategy_why,
+            "strategy_label": strategy_label,
         }
 
     state.encouragement = crit["message"]
 
-    # 5) Final reconciliation + safety labeling
+    # 6) Final reconciliation + safety labeling
     state = validate_and_repair(state)
-
     return {
         "mood": state.mood,
         "strategy": state.strategy,
@@ -193,4 +252,7 @@ async def run_pipeline(user_text: str, history: Optional[List[Dict[str, str]]] =
         "crisis_detected": state.crisis != "none",
         "safety": _safety_summary(state),
         "advice_given": state.advice_given,
+        "strategy_source": strategy_source,
+        "strategy_why": strategy_why,
+        "strategy_label": strategy_label,
     }
