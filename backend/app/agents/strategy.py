@@ -1,12 +1,20 @@
 # app/agents/strategy.py
 from __future__ import annotations
-import json, random, re
+
+import json
+import random
+import re
 from typing import List, Dict, Optional, Literal, Iterable, Set
 
 from ..agents.safety import detect_crisis
 from .resources import CATALOG, SYNONYMS, Resource
 
 Crisis = Literal["none", "self_harm", "other_harm"]
+
+# Government crisis resource (Sri Lanka – NIMH 1926)
+SRI_LANKA_CRISIS_URL = (
+    "https://nimh.health.gov.lk/en/1926-national-mental-health-helpline/"
+)
 
 # ----------------- micro-steps (kept) -----------------
 MOOD_STEPS: Dict[str, List[str]] = {
@@ -32,6 +40,7 @@ MOOD_STEPS: Dict[str, List[str]] = {
     ],
 }
 
+
 def _pick_non_repeating(
     candidates: List[str], history: Optional[List[Dict[str, str]]]
 ) -> str:
@@ -48,18 +57,25 @@ def _pick_non_repeating(
         pool = candidates
     return random.choice(pool)
 
+
 # ----------------- text utilities -----------------
 STOPWORDS = set(
-    "a an and the of to in for with on at by from up down over under into out about around as is are was were "
-    "be been being i you he she they we it this that these those my your his her their our me him them us".split()
+    (
+        "a an and the of to in for with on at by from up down over under into out about around as "
+        "is are was were be been being i you he she they we it this that these those my your his "
+        "her their our me him them us"
+    ).split()
 )
+
 
 def _tokens(text: str) -> List[str]:
     toks = re.findall(r"[a-zA-Z][a-zA-Z'-]{1,}", (text or "").lower())
     return [t for t in toks if t not in STOPWORDS]
 
+
 def _bigrams(tokens: List[str]) -> List[str]:
     return [f"{tokens[i]} {tokens[i+1]}" for i in range(len(tokens) - 1)]
+
 
 def _expand_synonyms(words: Iterable[str]) -> Set[str]:
     out: Set[str] = set(words)
@@ -69,6 +85,7 @@ def _expand_synonyms(words: Iterable[str]) -> Set[str]:
                 out.add(k)
                 out.update(syns)
     return out
+
 
 def _kw_weights(item: Resource) -> Dict[str, float]:
     """
@@ -88,6 +105,7 @@ def _kw_weights(item: Resource) -> Dict[str, float]:
             out[s] = 1.0
     return out
 
+
 def _light_fuzzy_hit(q: str, k: str) -> bool:
     """
     Cheap fuzzy check (no external deps): substring / small edit gap.
@@ -98,6 +116,7 @@ def _light_fuzzy_hit(q: str, k: str) -> bool:
         mismatches = sum(1 for a, b in zip(q, k) if a != b) + abs(len(q) - len(k))
         return mismatches <= 1
     return False
+
 
 # ----------------- scoring + diversification -----------------
 def _match_score(item: Resource, mood: str, user_text: str) -> float:
@@ -138,7 +157,9 @@ def _match_score(item: Resource, mood: str, user_text: str) -> float:
 
     # light fuzzy against keywords or title
     for qt in q_terms:
-        if any(_light_fuzzy_hit(qt, kt) for kt in kw_terms) or any(_light_fuzzy_hit(qt, tt) for tt in title_terms):
+        if any(_light_fuzzy_hit(qt, kt) for kt in kw_terms) or any(
+            _light_fuzzy_hit(qt, tt) for tt in title_terms
+        ):
             score += 0.15
             break
 
@@ -151,7 +172,10 @@ def _match_score(item: Resource, mood: str, user_text: str) -> float:
 
     return score
 
-def _diversify(top_items: List[Resource], k: int = 3, exclude_ids: Set[str] | None = None) -> List[Resource]:
+
+def _diversify(
+    top_items: List[Resource], k: int = 3, exclude_ids: Set[str] | None = None
+) -> List[Resource]:
     want_types = ["video", "article", "book"]
     out: List[Resource] = []
     seen = set(exclude_ids or [])
@@ -176,6 +200,7 @@ def _diversify(top_items: List[Resource], k: int = 3, exclude_ids: Set[str] | No
 
     return out[:k]
 
+
 # ----------------- public APIs -----------------
 async def suggest_resources(
     *,
@@ -187,10 +212,23 @@ async def suggest_resources(
     exclude_ids: Optional[List[str]] = None,
 ) -> str:
     """Return 1–k curated resource options as JSON string."""
+    # If caller or detector flags crisis, short-circuit with clinician flag and Sri Lanka crisis link
     if crisis != "none":
-        return json.dumps({"options": [], "needs_clinician": True})
+        return json.dumps(
+            {
+                "options": [],
+                "needs_clinician": True,
+                "crisis_link": SRI_LANKA_CRISIS_URL,
+            }
+        )
     if detect_crisis(user_text) != "none":
-        return json.dumps({"options": [], "needs_clinician": True})
+        return json.dumps(
+            {
+                "options": [],
+                "needs_clinician": True,
+                "crisis_link": SRI_LANKA_CRISIS_URL,
+            }
+        )
 
     m = (mood or "neutral").lower()
     scored = [(_match_score(it, m, user_text), it) for it in CATALOG]
@@ -207,24 +245,32 @@ async def suggest_resources(
         exclude_ids=set(exclude_ids or []),
     )
 
-    return json.dumps({
-        "options": [
-            {
-                "id": it["id"],
-                "type": it["type"],
-                "title": it["title"],
-                "url": it["url"],
-                "duration": it.get("duration", ""),
-                "why": it.get("why", ""),
-                "cautions": it.get("cautions", ""),
-                "source": it.get("source", ""),
-            } for it in options
-        ],
-        "needs_clinician": False
-    })
+    return json.dumps(
+        {
+            "options": [
+                {
+                    "id": it["id"],
+                    "type": it["type"],
+                    "title": it["title"],
+                    "url": it["url"],
+                    "duration": it.get("duration", ""),
+                    "why": it.get("why", ""),
+                    "cautions": it.get("cautions", ""),
+                    "source": it.get("source", ""),
+                }
+                for it in options
+            ],
+            "needs_clinician": False,
+        }
+    )
+
 
 async def suggest_strategy(
-    *, mood: str, user_text: str, crisis: Crisis, history: Optional[List[Dict[str, str]]] = None
+    *,
+    mood: str,
+    user_text: str,
+    crisis: Crisis,
+    history: Optional[List[Dict[str, str]]] = None,
 ) -> str:
     """Return a tiny micro-step string."""
     if crisis != "none":

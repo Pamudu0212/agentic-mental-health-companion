@@ -8,7 +8,7 @@ export async function sendChat(message, userId = "anon") {
     body: JSON.stringify({ user_text: message, user_id: userId }),
   });
   if (!r.ok) throw new Error(`Request failed: ${r.status} ${await r.text()}`);
-  return r.json(); // returns ChatResponse from backend
+  return r.json(); // { reply: "...", ... }
 }
 
 // Micro-step suggestion
@@ -22,7 +22,7 @@ export async function fetchStrategy({ user_text, mood = "neutral", crisis = "non
   return r.json(); // { strategy: "..." }
 }
 
-// External resource options (video/article/book)
+// External resource options (video/article/book or crisis link)
 export async function fetchResources({
   user_text,
   mood = "neutral",
@@ -36,5 +36,15 @@ export async function fetchResources({
     body: JSON.stringify({ user_text, mood, crisis, history, exclude_ids }),
   });
   if (!r.ok) throw new Error(`Resources failed: ${r.status} ${await r.text()}`);
-  return r.json(); // { options: [...], needs_clinician: false }
+  return r.json();
+  /*
+    Response shape:
+    {
+      options: [
+        { id, type, title, url, duration?, why?, cautions?, source? }
+      ],
+      needs_clinician: boolean,
+      crisis_link?: string   // <-- present only when crisis detected
+    }
+  */
 }

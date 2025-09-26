@@ -1121,5 +1121,15 @@
     "why": "University-backed tips for calmer studying.",
     "cautions": "",
     "source": "University of Oxford"
-  }
+  },
+
+  {
+  "id": "sri_lanka_crisis",
+  "type": "crisis",
+  "name": "Sri Lanka National Mental Health Helpline (1926)",
+  "url": "https://nimh.health.gov.lk/en/",
+  "country": "LK",
+  "verified": true
+}
+
 ]

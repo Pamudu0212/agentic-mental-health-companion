@@ -1,6 +1,7 @@
 // src/App.jsx
 import { useEffect, useMemo, useRef, useState } from "react";
 import { sendChat, fetchResources } from "./api";
+import CrisisCta from "./components/CrisisCta.tsx"; // NEW: use your CTA component
 
 // ---------- utils ----------
 function useUserId() {
@@ -51,7 +52,7 @@ function ResourceCard({ opt }) {
   );
 }
 
-function Insights({ latest, resources, loadingResources }) {
+function Insights({ latest, resources, loadingResources, needsClinician, crisisLink }) {
   const { mood, strategy, analyzing, safety } = latest || {};
   const level = safety?.level ?? "safe";
 
@@ -106,7 +107,16 @@ function Insights({ latest, resources, loadingResources }) {
             <div className="text-[11px] uppercase tracking-wide text-slate-500 mb-1">
               Helpful resources
             </div>
-            {loadingResources ? (
+
+            {/* NEW: crisis-only government CTA */}
+            {needsClinician && crisisLink ? (
+              <div className="space-y-2">
+                <p className="text-sm text-slate-700">
+                  If you’re in immediate danger or feel unable to stay safe, please use the official support below.
+                </p>
+                <CrisisCta href={crisisLink} />
+              </div>
+            ) : loadingResources ? (
               <div className="text-sm text-slate-500">Finding options…</div>
             ) : resources?.length ? (
               <div className="grid grid-cols-1 gap-2">
@@ -165,6 +175,11 @@ export default function App() {
   const [latest, setLatest] = useState(null); // {mood, strategy, safety, analyzing}
   const [resources, setResources] = useState([]); // [{id,type,title,url,...}]
   const [loadingResources, setLoadingResources] = useState(false);
+
+  // NEW: capture backend crisis flags
+  const [needsClinician, setNeedsClinician] = useState(false);
+  const [crisisLink, setCrisisLink] = useState(null);
+
   const logRef = useRef(null);
 
   // ---- Chat-like scrolling ----
@@ -209,6 +224,8 @@ export default function App() {
     setLoading(true);
     setLoadingResources(true);
     setResources([]);
+    setNeedsClinician(false);
+    setCrisisLink(null);
 
     try {
       // 1) chat conversation
@@ -216,22 +233,28 @@ export default function App() {
       setMsgs((m) => [...m, { role: "assistant", content: res.encouragement }]);
 
       const mood = res.mood || "neutral";
+      const crisisDetected = !!res.crisis_detected;
+
       setLatest({
         mood,
         strategy: res.strategy,
         safety: res.safety ?? {
-          level: res.crisis_detected ? "crisis_self" : "safe",
-          reason: res.crisis_detected ? "Crisis mode" : "No crisis indicators found",
+          level: crisisDetected ? "crisis_self" : "safe",
+          reason: crisisDetected ? "Crisis mode" : "No crisis indicators found",
         },
         analyzing: false,
       });
 
-      // 2) fetch resource options (video/article/book)
+      // 2) fetch resource options (or crisis link)
       try {
         const r = await fetchResources({ user_text: text, mood, crisis: "none" });
         setResources(r?.options || []);
+        setNeedsClinician(!!r?.needs_clinician);
+        setCrisisLink(r?.crisis_link ?? null);
       } catch {
         setResources([]);
+        setNeedsClinician(false);
+        setCrisisLink(null);
       } finally {
         setLoadingResources(false);
       }
@@ -329,7 +352,13 @@ export default function App() {
           {/* Insights / resources */}
           <section className="lg:col-span-1">
             <div className="h-full lg:sticky lg:top-[5.5rem]">
-              <Insights latest={latest} resources={resources} loadingResources={loadingResources} />
+              <Insights
+                latest={latest}
+                resources={resources}
+                loadingResources={loadingResources}
+                needsClinician={needsClinician}
+                crisisLink={crisisLink}
+              />
             </div>
           </section>
         </div>
