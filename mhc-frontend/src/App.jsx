@@ -1,6 +1,6 @@
 // src/App.jsx
 import { useEffect, useMemo, useRef, useState } from "react";
-import { sendChat, fetchResources, fetchStrategy } from "./api";
+import { sendChat, fetchResources } from "./api";
 import CrisisCta from "./components/CrisisCta.tsx";
 
 // ---------- utils ----------
@@ -84,6 +84,7 @@ function Insights({ latest, resources, loadingResources, needsClinician, crisisL
         )}
 
         <div className="mt-4 space-y-5 overflow-auto pr-1">
+          {/* Mood */}
           <section>
             <div className="text-[11px] uppercase tracking-wide text-slate-500">Mood</div>
             <div className="mt-1 text-base font-medium text-slate-800">
@@ -96,19 +97,40 @@ function Insights({ latest, resources, loadingResources, needsClinician, crisisL
             </div>
           </section>
 
+          {/* Suggested step + source */}
           <section>
             <div className="text-[11px] uppercase tracking-wide text-slate-500">Suggested next step</div>
-            <p className="mt-1 text-slate-700 whitespace-pre-wrap break-words leading-relaxed">
-              {analyzing ? "Preparing a gentle suggestion…" : strategy || "—"}
-            </p>
+            {analyzing ? (
+              <p className="mt-1 text-slate-700">Preparing a gentle suggestion…</p>
+            ) : strategy ? (
+              <div className="mt-1">
+                <p className="text-slate-700 whitespace-pre-wrap break-words leading-relaxed">
+                  {strategy}
+                </p>
+
+                {/* Show a compact “View source” button if backend gave us one */}
+                {latest?.advice_given && latest?.strategy_source?.url ? (
+                  <a
+                    href={latest.strategy_source.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 mt-2 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-[12px] font-medium text-emerald-700 hover:bg-emerald-100"
+                  >
+                    View source{latest.strategy_source.name ? ` · ${latest.strategy_source.name}` : ""}
+                  </a>
+                ) : null}
+              </div>
+            ) : (
+              <p className="mt-1 text-slate-400">—</p>
+            )}
           </section>
 
+          {/* Helpful resources or crisis CTA */}
           <section>
             <div className="text-[11px] uppercase tracking-wide text-slate-500 mb-1">
               Helpful resources
             </div>
 
-            {/* Crisis-only government CTA */}
             {needsClinician && crisisLink ? (
               <div className="space-y-2">
                 <p className="text-sm text-slate-700">
@@ -172,7 +194,7 @@ export default function App() {
   const [input, setInput] = useState("");
   const [msgs, setMsgs] = useState([]); // {role, content}
   const [loading, setLoading] = useState(false);
-  const [latest, setLatest] = useState(null); // {mood, strategy, safety, analyzing}
+  const [latest, setLatest] = useState(null); // {mood, strategy, advice_given, strategy_source, safety, analyzing}
   const [resources, setResources] = useState([]); // [{id,type,title,url,...}]
   const [loadingResources, setLoadingResources] = useState(false);
 
@@ -228,17 +250,18 @@ export default function App() {
     setCrisisLink(null);
 
     try {
-      // 1) Chat with backend
+      // 1) Chat with backend (now returns strategy, advice_given, strategy_source)
       const res = await sendChat(text, userId);
       setMsgs((m) => [...m, { role: "assistant", content: res.encouragement }]);
 
       const mood = res.mood || "neutral";
       const crisisDetected = !!res.crisis_detected;
 
-      // Set initial latest (strategy will be filled after fetchStrategy)
       setLatest({
         mood,
         strategy: res.strategy || "",
+        advice_given: !!res.advice_given,
+        strategy_source: res.strategy_source || null,
         safety: res.safety ?? {
           level: crisisDetected ? "crisis_self" : "safe",
           reason: crisisDetected ? "Crisis mode" : "No crisis indicators found",
@@ -246,18 +269,7 @@ export default function App() {
         analyzing: false,
       });
 
-      // 2) Fetch micro-step strategy (this was missing)
-      try {
-        const strat = await fetchStrategy({ user_text: text, mood, crisis: "none", history: null });
-        setLatest((prev) => ({
-          ...(prev || {}),
-          strategy: strat?.strategy || prev?.strategy || "",
-        }));
-      } catch {
-        // keep strategy as-is (possibly empty)
-      }
-
-      // 3) Fetch external resources OR crisis link
+      // 2) Fetch external resources OR crisis link (unchanged)
       try {
         const r = await fetchResources({ user_text: text, mood, crisis: "none", history: null, exclude_ids: [] });
         setResources(r?.options || []);

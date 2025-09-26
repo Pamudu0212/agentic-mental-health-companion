@@ -8,10 +8,10 @@ from typing import List, Dict, Optional, Literal
 # Agents
 from .agents.safety import detect_crisis, detect_crisis_with_moderation
 from .agents.mood import detect_mood
-from .agents.strategy import suggest_strategy  # (kept if you still want to use it later)
 from .agents.encouragement import encourage, converse
-from .agents.coach_agent import coach_draft
+from .agents.coach_agent import coach_draft  # kept (not required now, but harmless)
 from .agents.critic_agent import critic_fix
+from .agents.skillcards import best_strategy_entry  # NEW: DB-backed retrieval with source
 
 # Crisis types
 Crisis = Literal["none", "self_harm", "other_harm"]
@@ -111,13 +111,13 @@ def validate_and_repair(state: TurnState) -> TurnState:
 
 def _should_offer_step(user_text: str, mood: str) -> bool:
     """
-    Stricter gate: suggest a step ONLY when at least one primary trigger is true:
+    Gate: suggest a step ONLY when at least one primary trigger is true:
       - explicit help/advice request
       - a real problem question (not name/smalltalk)
       - distress keywords in the message
-    Mood can support the decision, but mood alone is not enough.
+
     Positive moods require explicit help to offer steps.
-    Short/low-content messages don't trigger steps.
+    Very short messages don’t trigger steps.
     """
     t = (user_text or "").lower()
 
@@ -152,6 +152,7 @@ async def run_pipeline(
 ):
     # Shared state
     state = TurnState(user_text=user_text, history=history or [])
+    strategy_source: Optional[Dict[str, str]] = None  # NEW
 
     # 1) Safety gate (rules + LLM moderation)
     state.crisis = await detect_crisis_with_moderation(state.user_text)
@@ -164,21 +165,55 @@ async def run_pipeline(
             "crisis_detected": True,
             "safety": _safety_summary(state),
             "advice_given": state.advice_given,
+            "strategy_source": strategy_source,  # None in crisis path
         }
 
     # 2) Mood
     state.mood = detect_mood(state.user_text) or "neutral"
 
-    # 3) Decide: conversation (Encouragement) vs advice (Coach)
+    # 3) Decide: conversation vs advice
     if _should_offer_step(state.user_text, state.mood):
-        draft = await coach_draft(user_text=state.user_text, mood=state.mood, history=state.history)
-        state.strategy = draft.get("strategy") or ""
-        draft_msg = draft.get("message") or ""
-        state.advice_given = True
+        # NEW: DB-backed retrieval of a concrete, clinician-reviewed micro-step (with source)
+        entry = best_strategy_entry(
+            user_text=state.user_text,
+            mood=state.mood,
+            history=state.history,
+        )
+
+        if entry:
+            state.strategy = entry["step"]
+            state.advice_given = True
+            strategy_source = {
+                "name": entry.get("source_name", "") or "",
+                "url": entry.get("source_url", "") or "",
+            }
+            # Provide a lightweight draft so the critic can review wording
+            draft_msg = (
+                "Based on what you shared, a tiny next step you could try is:\n\n"
+                f"- {state.strategy}\n\n"
+                "If that doesn’t fit, tell me what feels hard and we’ll adjust it together."
+            )
+        else:
+            # No good step ranked → fall back to supportive conversation
+            draft_msg = await converse(
+                user_text=state.user_text,
+                mood=state.mood,
+                history=state.history,
+                crisis=state.crisis,
+            )
+            state.strategy = ""
+            state.advice_given = False
+            strategy_source = None
     else:
-        draft_msg = await converse(user_text=state.user_text, mood=state.mood, history=state.history, crisis=state.crisis)
+        draft_msg = await converse(
+            user_text=state.user_text,
+            mood=state.mood,
+            history=state.history,
+            crisis=state.crisis,
+        )
         state.strategy = ""
         state.advice_given = False
+        strategy_source = None
 
     # Defense: if strategy itself looks unsafe
     if detect_crisis(state.strategy) != "none":
@@ -191,6 +226,7 @@ async def run_pipeline(
             "crisis_detected": True,
             "safety": _safety_summary(state),
             "advice_given": state.advice_given,
+            "strategy_source": strategy_source,
         }
 
     # 4) Encouragement (LLM-based supportive message)
@@ -214,6 +250,7 @@ async def run_pipeline(
             "crisis_detected": True,
             "safety": _safety_summary(state),
             "advice_given": state.advice_given,
+            "strategy_source": strategy_source,
         }
 
     state.encouragement = crit["message"]
@@ -227,4 +264,5 @@ async def run_pipeline(
         "crisis_detected": state.crisis != "none",
         "safety": _safety_summary(state),
         "advice_given": state.advice_given,
+        "strategy_source": strategy_source,
     }
