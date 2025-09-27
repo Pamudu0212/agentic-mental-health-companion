@@ -7,53 +7,78 @@ import os
 import json
 import asyncio
 import traceback
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 import httpx
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi.responses import StreamingResponse, JSONResponse, RedirectResponse
+from starlette.middleware.sessions import SessionMiddleware
 from sqlalchemy import desc
 from sqlalchemy.orm import Session, sessionmaker
 from pydantic import BaseModel
 
 from .db import Base, engine, get_db
-from .models import Interaction, Strategy   # <-- import Strategy so table is created
+from .models import Interaction, Strategy  # ensure Strategy table is created
 from .schemas import ChatRequest, ChatResponse
 from .orchestrator import run_pipeline
 from .agents.mood import _pipe, detect_mood
 from .agents.safety import detect_crisis
 from .prompts import ENCOURAGEMENT_SYSTEM, CRISIS_MESSAGE_SELF, CRISIS_MESSAGE_OTHERS
+from .auth import router as auth_router  # Google OAuth endpoints
 
 # Coping strategy suggestors
 from .agents.strategy import suggest_strategy, suggest_resources, Crisis
 
 # -----------------------------------------------------------------------------
-#FastAPI
+# FastAPI app
 # -----------------------------------------------------------------------------
 app = FastAPI(title="Agentic Mental Health Companion")
 
-# CORS (adjust as you need)
+# --- CORS (env-driven with sensible local fallbacks) ---
+FRONTEND_ORIGIN = os.getenv("FRONTEND_ORIGIN", "http://127.0.0.1:5175").rstrip("/")
+_extra_origins = [
+    "http://localhost:5175",
+    "http://127.0.0.1:5175",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:5178",
+    "http://127.0.0.1:5178",
+]
+allow_origins = list({FRONTEND_ORIGIN, *_extra_origins})
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5175",
-        "http://127.0.0.1:5175",
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:5178",
-        "http://127.0.0.1:5178",
-    ],
+    allow_origins=allow_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Ensure tables exist (requires Strategy to be imported above)
+# --- Secure session cookie for Google login (adjust for prod) ---
+SECRET_KEY = os.getenv("SECRET_KEY", "dev-change-me")
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=SECRET_KEY,
+    same_site="lax",       # use "none" with HTTPS for cross-site prod
+    https_only=False,       # set True in production with HTTPS
+)
+
+# Ensure tables exist (no-op if already exist)
 Base.metadata.create_all(bind=engine)
 
+# include /api/auth/google, /api/auth/me, /api/auth/logout, etc.
+app.include_router(auth_router)
+
 # -----------------------------------------------------------------------------
-#Startup: warm model + seed strategies if empty
+# Root redirect so landing on backend "/" doesn't show 404
+# -----------------------------------------------------------------------------
+@app.get("/", include_in_schema=False)
+async def index():
+    return RedirectResponse(url=f"{FRONTEND_ORIGIN}/")
+
+# -----------------------------------------------------------------------------
+# Startup: warm model + seed strategies if empty
 # -----------------------------------------------------------------------------
 SessionLocal = sessionmaker(bind=engine)
 
@@ -134,6 +159,7 @@ async def warm_models():
 # -----------------------------------------------------------------------------
 # Helpers
 # -----------------------------------------------------------------------------
+
 def fetch_history_as_messages(db: Session, user_id: str, limit: int = 8) -> List[Dict[str, str]]:
     """Return last `limit` turns in OpenAI-style message format."""
     rows = (
@@ -158,7 +184,10 @@ OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
 async def _openai_stream(messages: List[Dict[str, str]]):
-    """Stream plain-text tokens from OpenAI Chat Completions."""
+    """
+    Stream plain-text tokens from OpenAI/Groq Chat Completions.
+    Yields text chunks.
+    """
     async with httpx.AsyncClient(timeout=60.0) as client:
         async with client.stream(
             "POST",
@@ -183,21 +212,26 @@ async def _openai_stream(messages: List[Dict[str, str]]):
                     continue
 
 # -----------------------------------------------------------------------------
-#Routes
+# Routes
 # -----------------------------------------------------------------------------
 @app.get("/health")
 async def health():
     return {"status": "ok"}
 
-async def _handle_chat(body: ChatRequest, db: Session) -> ChatResponse:
+async def _handle_chat(body: ChatRequest, request: Request, db: Session) -> ChatResponse:
+    """Shared core for /chat and /api/chat."""
     user_id = body.user_id or "anon"
     history = fetch_history_as_messages(db, user_id, limit=8)
 
     # Run the agent pipeline (handles crisis internally too)
     result = await run_pipeline(body.user_text, history=history)
 
-    # Persist minimal interaction record
-    record = Interaction(
+    # Logged-in user from session (set by Google callback)
+    ses_user: Optional[dict] = request.session.get("user")
+    user_sub = ses_user.get("sub") if ses_user else None
+
+    # Persist minimal interaction record (backwards compatible)
+    values = dict(
         user_id=user_id,
         user_text=body.user_text,
         detected_mood=result["mood"],
@@ -205,19 +239,27 @@ async def _handle_chat(body: ChatRequest, db: Session) -> ChatResponse:
         encouragement=result["encouragement"],
         safety_flag="true" if result["crisis_detected"] else "false",
     )
-    db.add(record)
+    if hasattr(Interaction, "user_sub"):
+        values["user_sub"] = user_sub
+
+    db.add(Interaction(**values))
     db.commit()
 
     return ChatResponse(**result)
 
 @app.post("/chat", response_model=ChatResponse)
-async def chat(body: ChatRequest, db: Session = Depends(get_db)):
-    return await _handle_chat(body, db)
+async def chat(body: ChatRequest, request: Request, db: Session = Depends(get_db)):
+    """Non-streaming chat (original path)."""
+    return await _handle_chat(body, request, db)
 
 @app.post("/api/chat")
-async def chat_api(body: ChatRequest, db: Session = Depends(get_db)):
+async def chat_api(body: ChatRequest, request: Request, db: Session = Depends(get_db)):
+    """
+    Non-streaming chat (frontend usually calls this through Vite proxy).
+    Wrapped with try/except to surface readable errors instead of a blind 500.
+    """
     try:
-        return await _handle_chat(body, db)
+        return await _handle_chat(body, request, db)
     except Exception as e:
         traceback.print_exc()
         return JSONResponse(
@@ -226,7 +268,11 @@ async def chat_api(body: ChatRequest, db: Session = Depends(get_db)):
         )
 
 @app.post("/chat/stream")
-async def chat_stream(body: ChatRequest, db: Session = Depends(get_db)):
+async def chat_stream(body: ChatRequest, request: Request, db: Session = Depends(get_db)):
+    """
+    Streaming chat endpoint that yields tokens as they're generated.
+    Frontend can read incremental chunks and render in real time.
+    """
     user_id = body.user_id or "anon"
 
     # Safety short-circuit using only the new user text
@@ -238,14 +284,20 @@ async def chat_stream(body: ChatRequest, db: Session = Depends(get_db)):
             yield crisis_message
 
         # persist crisis response
-        db.add(Interaction(
+        values = dict(
             user_id=user_id,
             user_text=body.user_text,
             detected_mood="unknown",
             chosen_strategy="",
             encouragement=crisis_message,
             safety_flag="true",
-        ))
+        )
+        ses_user: Optional[dict] = request.session.get("user")
+        user_sub = ses_user.get("sub") if ses_user else None
+        if hasattr(Interaction, "user_sub"):
+            values["user_sub"] = user_sub
+
+        db.add(Interaction(**values))
         db.commit()
         return StreamingResponse(crisis_gen(), media_type="text/plain")
 
@@ -262,27 +314,33 @@ async def chat_stream(body: ChatRequest, db: Session = Depends(get_db)):
             accumulated["text"] += chunk
             yield chunk
         # after stream completes, store one interaction row
-        db.add(Interaction(
+        values = dict(
             user_id=user_id,
             user_text=body.user_text,
             detected_mood=detect_mood(body.user_text),
             chosen_strategy="",
             encouragement=accumulated["text"],
             safety_flag="false",
-        ))
+        )
+        ses_user: Optional[dict] = request.session.get("user")
+        user_sub = ses_user.get("sub") if ses_user else None
+        if hasattr(Interaction, "user_sub"):
+            values["user_sub"] = user_sub
+
+        db.add(Interaction(**values))
         db.commit()
 
     return StreamingResponse(generator(), media_type="text/plain")
 
 # -----------------------------------------------------------------------------
-#Coping strategy endpoints (API + aliases)
+# Coping strategy endpoints (API + aliases)
 # -----------------------------------------------------------------------------
 class StrategyIn(BaseModel):
     mood: str = "neutral"
     user_text: str
     crisis: Crisis = "none"
-    history: list[dict] | None = None
-    exclude_ids: list[str] | None = None
+    history: Optional[List[Dict[str, str]]] = None
+    exclude_ids: Optional[List[str]] = None
 
 @app.post("/api/suggest/strategy")
 async def api_suggest_strategy(inp: StrategyIn):
