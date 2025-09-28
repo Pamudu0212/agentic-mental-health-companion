@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { sendChat, fetchResources } from "./api";
 import CrisisCta from "./components/CrisisCta.tsx";
+import MoodDial from "./components/MoodDial.jsx";
 
 // ---------- utils ----------
 function useUserId() {
@@ -87,13 +88,23 @@ function Insights({ latest, resources, loadingResources, needsClinician, crisisL
           {/* Mood */}
           <section>
             <div className="text-[11px] uppercase tracking-wide text-slate-500">Mood</div>
-            <div className="mt-1 text-base font-medium text-slate-800">
+            <div className="mt-1">
               {analyzing ? (
-                <span className="inline-flex items-center gap-2">
+                <span className="inline-flex items-center gap-2 text-slate-700">
                   <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
                   Analyzing…
                 </span>
-              ) : mood || "—"}
+              ) : mood ? (
+                <div className="flex justify-center">
+                  <MoodDial
+                    mood={mood}
+                    confidence={latest?.mood_confidence} // optional; safe if undefined
+                    size={200}
+                  />
+                </div>
+              ) : (
+                <span className="text-slate-400">—</span>
+              )}
             </div>
           </section>
 
@@ -217,7 +228,7 @@ export default function App() {
   const [showJump, setShowJump] = useState(false);
 
   const updateStickiness = () => {
-    const el = logRef.current;
+    const el = logRef.current; // <-- fixed
     if (!el) return;
     const threshold = 80;
     const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
@@ -272,6 +283,7 @@ export default function App() {
         strategy_source: res.strategy_source || null,
         strategy_why: res.strategy_why || "",
         strategy_label: res.strategy_label || "",
+        mood_confidence: res.mood_confidence, // safe if backend doesn't send it
         safety: res.safety ?? {
           level: crisisDetected ? "crisis_self" : "safe",
           reason: crisisDetected ? "Crisis mode" : "No crisis indicators found",
