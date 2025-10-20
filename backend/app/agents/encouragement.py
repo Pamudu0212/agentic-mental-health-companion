@@ -67,6 +67,7 @@ def _history(history: Optional[List[Dict[str, str]]]) -> str:
         lines.append(f"{role}: {content}")
     return "\n".join(lines)
 
+
 async def _llm_json(messages: List[Dict[str, str]], temperature: float = 0.35, timeout: float = 40.0) -> str:
     """Call the Chat Completions API with JSON response_format and return the raw text."""
     headers = {"Authorization": f"Bearer {OPENAI_API_KEY}"} if OPENAI_API_KEY else {}
@@ -81,6 +82,7 @@ async def _llm_json(messages: List[Dict[str, str]], temperature: float = 0.35, t
         r.raise_for_status()
         data = r.json()
         return (data["choices"][0]["message"]["content"] or "").strip()
+
 
 def _score_candidate(text: str, user_text: str) -> int:
     """Small rubric: open question + empathy + short + mirrors user keyword + no advice."""
@@ -99,6 +101,7 @@ def _score_candidate(text: str, user_text: str) -> int:
         score += 1
     return score
 
+
 async def _candidate(user_text: str, mood: str, temp: float) -> str:
     """Generate a single short reflective response with one open gentle question."""
     sys = (
@@ -112,6 +115,7 @@ async def _candidate(user_text: str, mood: str, temp: float) -> str:
     ]
     data = await chat_completions("ENCOURAGEMENT", messages, temperature=temp, top_p=0.9)
     return (data["choices"][0]["message"]["content"] or "").strip()
+
 
 # ----------------------------
 # JSON variant used by some flows
@@ -171,6 +175,7 @@ async def encourage_json(
         reply = "Thanks for sharing that. What feels most present for you right now?"
     return reply
 
+
 # ----------------------------
 # Conversation mode (no strategy; 1–2 sentences)
 # ----------------------------
@@ -203,6 +208,7 @@ async def converse(
     if len(best.split()) > 60:
         best = "Thanks for sharing that. What feels most present for you right now?"
     return best
+
 
 # ----------------------------
 # Strategy-inviting helper (plain text)

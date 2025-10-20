@@ -69,6 +69,13 @@ def _safety_summary(state: TurnState) -> dict:
     return {"level": "safe", "reason": "No crisis indicators found"}
 
 def validate_and_repair(state: TurnState) -> TurnState:
+    """
+    Enforce final invariants:
+      - Crisis wins over everything; redact strategy and replace message.
+      - If advice was given, lightly echo the step once inside the message.
+      - If no advice, clear the strategy string.
+      - Defense-in-depth: any unsafe hints → crisis mode.
+    """
     # Crisis wins
     if state.crisis != "none":
         state.mood = "unknown"
@@ -138,7 +145,7 @@ async def run_pipeline(
     strategy_why: str = ""
     strategy_label: str = ""
 
-    # 1) Safety gate
+    # 1) Safety gate (rules first, LLM moderation if enabled)
     state.crisis = await detect_crisis_with_moderation(state.user_text)
     if state.crisis != "none":
         state = validate_and_repair(state)
@@ -215,7 +222,7 @@ async def run_pipeline(
             "strategy_label": strategy_label,
         }
 
-    # 4) Encouragement
+    # 4) Encouragement (mirrors feeling; invites strategy once if present)
     state.encouragement = await encourage(
         user_text=state.user_text,
         mood=state.mood,
