@@ -4,18 +4,19 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   server: {
-    port: 5173,
+    host: '127.0.0.1',      // <— important
+    port: 5175,
     strictPort: true,
     proxy: {
       '/api': {
         target: 'http://127.0.0.1:8000',
         changeOrigin: true,
-        rewrite: p => p.replace(/^\/api/, ''),
+        secure: false,
       },
-      // (optional) also catch stray /chat calls if any remain
       '/chat': {
         target: 'http://127.0.0.1:8000',
         changeOrigin: true,
+        secure: false,
       },
     },
   },
