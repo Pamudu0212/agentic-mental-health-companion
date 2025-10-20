@@ -1,7 +1,9 @@
 // src/App.jsx
 import { useEffect, useMemo, useRef, useState } from "react";
-import { sendChat } from "./api";
+import { sendChat, fetchResources } from "./api";
+import CrisisCta from "./components/CrisisCta.tsx";
 
+// ---------- utils ----------
 function useUserId() {
   return useMemo(() => {
     const k = "mhc_user_id";
@@ -14,7 +16,43 @@ function useUserId() {
   }, []);
 }
 
-function Insights({ latest }) {
+// ---------- UI bits ----------
+function Badge({ children, className = "" }) {
+  return (
+    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${className}`}>
+      {children}
+    </span>
+  );
+}
+
+function ResourceCard({ opt }) {
+  const typeStyles = {
+    video: "bg-rose-50 text-rose-700",
+    article: "bg-indigo-50 text-indigo-700",
+    book: "bg-amber-50 text-amber-800",
+  };
+  const t = (opt.type || "article").toLowerCase();
+  return (
+    <a
+      href={opt.url}
+      target="_blank"
+      rel="noreferrer"
+      className="block rounded-xl border border-slate-200 bg-white/90 p-3 hover:shadow transition"
+    >
+      <div className="flex items-start justify-between gap-2">
+        <h4 className="text-sm font-semibold text-slate-800 leading-snug">{opt.title}</h4>
+        <Badge className={typeStyles[t] || "bg-slate-100 text-slate-700"}>{opt.type}</Badge>
+      </div>
+      {opt.why && <p className="mt-1 text-[13px] text-slate-600">{opt.why}</p>}
+      <div className="mt-2 flex items-center gap-2 text-[12px] text-slate-500">
+        {opt.duration && <span>⏱ {opt.duration}</span>}
+        {opt.source && <span>• {opt.source}</span>}
+      </div>
+    </a>
+  );
+}
+
+function Insights({ latest, resources, loadingResources, needsClinician, crisisLink }) {
   const { mood, strategy, analyzing, safety } = latest || {};
   const level = safety?.level ?? "safe";
 
@@ -45,11 +83,10 @@ function Insights({ latest }) {
           <p className="mt-2 text-xs text-slate-500">{safety.reason}</p>
         )}
 
-        <div className="mt-4 space-y-4 overflow-auto pr-1">
+        <div className="mt-4 space-y-5 overflow-auto pr-1">
+          {/* Mood */}
           <section>
-            <div className="text-[11px] uppercase tracking-wide text-slate-500">
-              Mood
-            </div>
+            <div className="text-[11px] uppercase tracking-wide text-slate-500">Mood</div>
             <div className="mt-1 text-base font-medium text-slate-800">
               {analyzing ? (
                 <span className="inline-flex items-center gap-2">
@@ -60,13 +97,67 @@ function Insights({ latest }) {
             </div>
           </section>
 
+          {/* Suggested step + WHY + source */}
           <section>
-            <div className="text-[11px] uppercase tracking-wide text-slate-500">
-              Suggested next step
+            <div className="text-[11px] uppercase tracking-wide text-slate-500">Suggested next step</div>
+            {analyzing ? (
+              <p className="mt-1 text-slate-700">Preparing a gentle suggestion…</p>
+            ) : strategy ? (
+              <div className="mt-1">
+                {/* Step text (string for compat) */}
+                <p className="text-slate-700 whitespace-pre-wrap break-words leading-relaxed">
+                  {strategy}
+                </p>
+
+                {/* Why this helps (if backend provided it) */}
+                {latest?.strategy_why && (
+                  <p className="mt-2 text-[13px] text-slate-600">
+                    <span className="font-medium text-slate-700">Why this helps: </span>
+                    {latest.strategy_why}
+                  </p>
+                )}
+
+                {/* View source button (if available) */}
+                {latest?.advice_given && latest?.strategy_source?.url ? (
+                  <a
+                    href={latest.strategy_source.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 mt-2 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-[12px] font-medium text-emerald-700 hover:bg-emerald-100"
+                  >
+                    View source{latest.strategy_source.name ? ` · ${latest.strategy_source.name}` : ""}
+                  </a>
+                ) : null}
+              </div>
+            ) : (
+              <p className="mt-1 text-slate-400">—</p>
+            )}
+          </section>
+
+          {/* Helpful resources or crisis CTA */}
+          <section>
+            <div className="text-[11px] uppercase tracking-wide text-slate-500 mb-1">
+              Helpful resources
             </div>
-            <p className="mt-1 text-slate-700 whitespace-pre-wrap break-words leading-relaxed">
-              {analyzing ? "Preparing a gentle suggestion…" : strategy || "—"}
-            </p>
+
+            {needsClinician && crisisLink ? (
+              <div className="space-y-2">
+                <p className="text-sm text-slate-700">
+                  If you’re in immediate danger or feel unable to stay safe, please use the official support below.
+                </p>
+                <CrisisCta href={crisisLink} />
+              </div>
+            ) : loadingResources ? (
+              <div className="text-sm text-slate-500">Finding options…</div>
+            ) : resources?.length ? (
+              <div className="grid grid-cols-1 gap-2">
+                {resources.map((opt) => (
+                  <ResourceCard key={opt.id} opt={opt} />
+                ))}
+              </div>
+            ) : (
+              <div className="text-sm text-slate-400">—</div>
+            )}
           </section>
 
           <p className="text-xs text-slate-500 mt-auto pt-2">
@@ -106,15 +197,22 @@ function Bubble({ role, children }) {
   );
 }
 
+// ---------- App ----------
 export default function App() {
   const userId = useUserId();
   const [input, setInput] = useState("");
   const [msgs, setMsgs] = useState([]); // {role, content}
   const [loading, setLoading] = useState(false);
-  const [latest, setLatest] = useState(null); // {mood, strategy, safety, analyzing}
+  const [latest, setLatest] = useState(null); // {mood, strategy, advice_given, strategy_source, strategy_why, safety, analyzing}
+  const [resources, setResources] = useState([]); // [{id,type,title,url,...}]
+  const [loadingResources, setLoadingResources] = useState(false);
+
+  const [needsClinician, setNeedsClinician] = useState(false);
+  const [crisisLink, setCrisisLink] = useState(null);
+
   const logRef = useRef(null);
 
-  // ---- ChatGPT-like scrolling ----
+  // ---- Chat-like scrolling ----
   const [autoStick, setAutoStick] = useState(true);
   const [showJump, setShowJump] = useState(false);
 
@@ -152,32 +250,53 @@ export default function App() {
     setMsgs((m) => [...m, { role: "user", content: text }]);
     setInput("");
 
-    setLatest((prev) => ({
-      ...(prev || {}),
-      analyzing: true,
-    }));
-
+    setLatest((prev) => ({ ...(prev || {}), analyzing: true }));
     setLoading(true);
-    try {
-      const res = await sendChat(text, userId);
+    setLoadingResources(true);
+    setResources([]);
+    setNeedsClinician(false);
+    setCrisisLink(null);
 
-      // Append assistant message
+    try {
+      // 1) Chat with backend (now includes strategy_why + strategy_source)
+      const res = await sendChat(text, userId);
       setMsgs((m) => [...m, { role: "assistant", content: res.encouragement }]);
 
-      // Save insights (now includes safety from backend)
+      const mood = res.mood || "neutral";
+      const crisisDetected = !!res.crisis_detected;
+
       setLatest({
-        mood: res.mood,
-        strategy: res.strategy,
+        mood,
+        strategy: res.strategy || "",
+        advice_given: !!res.advice_given,
+        strategy_source: res.strategy_source || null,
+        strategy_why: res.strategy_why || "",
+        strategy_label: res.strategy_label || "",
         safety: res.safety ?? {
-          level: res.crisis_detected ? "crisis_self" : "safe",
-          reason: res.crisis_detected ? "Crisis mode" : "No crisis indicators found",
+          level: crisisDetected ? "crisis_self" : "safe",
+          reason: crisisDetected ? "Crisis mode" : "No crisis indicators found",
         },
         analyzing: false,
       });
+
+      // 2) External resources / crisis link
+      try {
+        const r = await fetchResources({ user_text: text, mood, crisis: "none", history: null, exclude_ids: [] });
+        setResources(r?.options || []);
+        setNeedsClinician(!!r?.needs_clinician);
+        setCrisisLink(r?.crisis_link ?? null);
+      } catch {
+        setResources([]);
+        setNeedsClinician(false);
+        setCrisisLink(null);
+      } finally {
+        setLoadingResources(false);
+      }
     } catch (err) {
       const detail = err?.message || "Something went wrong. Please try again.";
       setMsgs((m) => [...m, { role: "assistant", content: `Error: ${detail}` }]);
       setLatest((prev) => (prev ? { ...prev, analyzing: false } : null));
+      setLoadingResources(false);
     } finally {
       setLoading(false);
     }
@@ -211,9 +330,7 @@ export default function App() {
               )}
               {msgs.map((m, i) => (
                 <Bubble key={i} role={m.role}>
-                  <pre className="whitespace-pre-wrap break-words font-sans">
-                    {m.content}
-                  </pre>
+                  <pre className="whitespace-pre-wrap break-words font-sans">{m.content}</pre>
                 </Bubble>
               ))}
               {loading && (
@@ -247,29 +364,22 @@ export default function App() {
               </button>
             </form>
 
-            {showJump && (
-              <button
-                onClick={() => {
-                  setAutoStick(true);
-                  scrollToBottom("smooth");
-                }}
-                className="absolute left-1/2 -translate-x-1/2 bottom-20 rounded-full bg-white/90 border border-emerald-200 px-3 py-1 text-sm shadow hover:bg-white"
-                aria-label="Jump to latest"
-              >
-                Jump to latest ↓
-              </button>
-            )}
-
             <div className="text-[11px] text-slate-500 px-6 pb-3">
               API via Vite proxy: <code>/api</code> → <code>http://127.0.0.1:8000</code> · user:{" "}
               <code className="select-all">{userId}</code>
             </div>
           </section>
 
-          {/* Insights */}
+          {/* Insights / resources */}
           <section className="lg:col-span-1">
             <div className="h-full lg:sticky lg:top-[5.5rem]">
-              <Insights latest={latest} />
+              <Insights
+                latest={latest}
+                resources={resources}
+                loadingResources={loadingResources}
+                needsClinician={needsClinician}
+                crisisLink={crisisLink}
+              />
             </div>
           </section>
         </div>

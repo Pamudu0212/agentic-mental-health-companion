@@ -1,0 +1,1135 @@
+[
+  {
+    "id": "yt-box-breathing-2m",
+    "type": "video",
+    "title": "Box Breathing (4x4) — 2-minute guide",
+    "url": "https://www.youtube.com/watch?v=tEmt1Znux58",
+    "duration": "2m",
+    "moods": [
+      "anxiety",
+      "distress",
+      "panic"
+    ],
+    "keywords": [
+      "breathing",
+      "box breathing",
+      "calm",
+      "arousal",
+      "heart racing",
+      "panic"
+    ],
+    "why": "Paced, counted breathing can lower arousal and steady attention.",
+    "cautions": "Stop if dizzy; skip with severe respiratory issues.",
+    "source": "YouTube"
+  },
+  {
+    "id": "yt-mindful-breathing-5m",
+    "type": "video",
+    "title": "Mindful Breathing — 5 minutes",
+    "url": "https://www.youtube.com/watch?v=wfDTp2GogaQ",
+    "duration": "5m",
+    "moods": [
+      "anxiety",
+      "stress",
+      "neutral"
+    ],
+    "keywords": [
+      "mindful",
+      "breathing",
+      "anxiety",
+      "restless",
+      "worry",
+      "inhale",
+      "exhale"
+    ],
+    "why": "A short guided practice to slow thoughts and ease tension.",
+    "cautions": "If focusing on the breath is uncomfortable, consider grounding instead.",
+    "source": "YouTube"
+  },
+  {
+    "id": "yt-478-breathing-4m",
+    "type": "video",
+    "title": "4‑7‑8 Breathing — wind down",
+    "url": "https://www.youtube.com/watch?v=gz4G31LGyog",
+    "duration": "4m",
+    "moods": [
+      "anxiety",
+      "sleep",
+      "neutral"
+    ],
+    "keywords": [
+      "breathing",
+      "4-7-8",
+      "relaxation",
+      "sleep",
+      "night"
+    ],
+    "why": "This cadence can activate the parasympathetic system and support sleep.",
+    "cautions": "",
+    "source": "YouTube"
+  },
+  {
+    "id": "yt-progressive-muscle-5m",
+    "type": "video",
+    "title": "Progressive Muscle Relaxation — 5 minutes",
+    "url": "https://www.youtube.com/watch?v=1nZEdqcGVzo",
+    "duration": "5m",
+    "moods": [
+      "anxiety",
+      "anger",
+      "stress"
+    ],
+    "keywords": [
+      "tension",
+      "tight shoulders",
+      "body",
+      "relaxation",
+      "pmr"
+    ],
+    "why": "Tensing and releasing muscle groups reduces stored tension.",
+    "cautions": "Skip with acute injuries.",
+    "source": "YouTube"
+  },
+  {
+    "id": "yt-guided-imagery-3m",
+    "type": "video",
+    "title": "Guided imagery — calm place visualization (3 min)",
+    "url": "https://www.youtube.com/watch?v=ZEYuSRHgmCg",
+    "duration": "7m",
+    "moods": [
+      "anxiety",
+      "distress",
+      "neutral"
+    ],
+    "keywords": [
+      "visualization",
+      "imagine",
+      "relax",
+      "calm",
+      "scene"
+    ],
+    "why": "Brief visualization can settle the mind when words feel heavy.",
+    "cautions": "Skip if imagery becomes uncomfortable.",
+    "source": "YouTube"
+  },
+  {
+    "id": "article-grounding-therapistaid",
+    "type": "article",
+    "title": "Grounding Techniques (TherapistAid)",
+    "url": "https://www.therapistaid.com/therapy-article/grounding-techniques-article",
+    "duration": "5m read",
+    "moods": [
+      "distress",
+      "anxiety",
+      "panic"
+    ],
+    "keywords": [
+      "grounding",
+      "5-4-3-2-1",
+      "dissociation",
+      "present moment",
+      "panic"
+    ],
+    "why": "Sensory techniques to anchor in the present.",
+    "cautions": "",
+    "source": "TherapistAid"
+  },
+  {
+    "id": "article-54321-healthline",
+    "type": "article",
+    "title": "5‑4‑3‑2‑1 Technique for Anxiety (Healthline)",
+    "url": "https://www.healthline.com/health/anxiety/5-4-3-2-1-grounding-technique-for-anxiety",
+    "duration": "4m read",
+    "moods": [
+      "anxiety",
+      "panic",
+      "distress"
+    ],
+    "keywords": [
+      "panic",
+      "anxious",
+      "grounding",
+      "5 senses",
+      "overwhelm"
+    ],
+    "why": "Quick grounding by noticing senses.",
+    "cautions": "",
+    "source": "Healthline"
+  },
+  {
+    "id": "article-54321-urmc",
+    "type": "article",
+    "title": "5‑4‑3‑2‑1 Coping Technique (URMC)",
+    "url": "https://www.urmc.rochester.edu/behavioral-health-partners/bhp-blog/april-2018/5-4-3-2-1-coping-technique-for-anxiety",
+    "duration": "3m read",
+    "moods": [
+      "anxiety",
+      "panic"
+    ],
+    "keywords": [
+      "panic",
+      "racing thoughts",
+      "grounding",
+      "overthinking"
+    ],
+    "why": "Simple sensory steps you can do anywhere.",
+    "cautions": "",
+    "source": "University of Rochester Medical Center"
+  },
+  {
+    "id": "article-nhs-breathing-stress",
+    "type": "article",
+    "title": "Breathing exercises for stress (NHS)",
+    "url": "https://www.nhs.uk/mental-health/self-help/guides-tools-and-activities/breathing-exercises-for-stress/",
+    "duration": "4m read",
+    "moods": [
+      "anxiety",
+      "stress",
+      "distress"
+    ],
+    "keywords": [
+      "breathing",
+      "stress",
+      "panic",
+      "exercise"
+    ],
+    "why": "Step‑by‑step NHS guide to calm the body.",
+    "cautions": "",
+    "source": "NHS"
+  },
+  {
+    "id": "article-sleep-hygiene",
+    "type": "article",
+    "title": "Sleep Hygiene — simple checklist",
+    "url": "https://www.sleepfoundation.org/sleep-hygiene",
+    "duration": "5m read",
+    "moods": [
+      "sleep",
+      "neutral"
+    ],
+    "keywords": [
+      "sleep",
+      "insomnia",
+      "wake",
+      "tired",
+      "night routine"
+    ],
+    "why": "Small habits can improve sleep consistency.",
+    "cautions": "",
+    "source": "Sleep Foundation"
+  },
+  {
+    "id": "yt-guided-sleep-30m",
+    "type": "video",
+    "title": "Guided Sleep Meditation (30 min)",
+    "url": "https://www.youtube.com/watch?v=1vx8iUvfyCY",
+    "duration": "30m",
+    "moods": [
+      "sleep"
+    ],
+    "keywords": [
+      "sleep",
+      "relax",
+      "night",
+      "calm",
+      "insomnia"
+    ],
+    "why": "Gentle narration helps transition to sleep.",
+    "cautions": "",
+    "source": "YouTube"
+  },
+  {
+    "id": "yt-sleep-breath-4m",
+    "type": "video",
+    "title": "Sleep breathing — wind down (4 min)",
+    "url": "https://www.youtube.com/watch?v=gz4G31LGyog",
+    "duration": "4m",
+    "moods": [
+      "sleep",
+      "neutral",
+      "sadness"
+    ],
+    "keywords": [
+      "sleep",
+      "breathing",
+      "night",
+      "wind down"
+    ],
+    "why": "Short cadence eases into rest.",
+    "cautions": "",
+    "source": "YouTube"
+  },
+  {
+    "id": "article-cdc-sleep-basics",
+    "type": "article",
+    "title": "Basics of Sleep and Health (CDC)",
+    "url": "https://www.cdc.gov/sleep/about/index.html",
+    "duration": "6m read",
+    "moods": [
+      "sleep",
+      "neutral"
+    ],
+    "keywords": [
+      "sleep",
+      "health",
+      "tips",
+      "insomnia"
+    ],
+    "why": "Overview of healthy sleep habits.",
+    "cautions": "",
+    "source": "CDC"
+  },
+  {
+    "id": "article-test-anxiety-canada",
+    "type": "article",
+    "title": "Test Anxiety — quick tips",
+    "url": "https://www.psychologytoday.com/us/blog/in-practice/201502/test-anxiety-quick-tips?msockid=20c64c1045546c1b33d05f9344976dfd",
+    "duration": "6m read",
+    "moods": [
+      "anxiety",
+      "distress"
+    ],
+    "keywords": [
+      "exam",
+      "test",
+      "study",
+      "performance",
+      "panic",
+      "school"
+    ],
+    "why": "Practical ways to unhook from worry and prepare steadily.",
+    "cautions": "",
+    "source": "Anxiety Canada"
+  },
+  {
+    "id": "yt-study-focus-lofi",
+    "type": "video",
+    "title": "Lo‑fi beats to study / focus (1h)",
+    "url": "https://www.youtube.com/watch?v=jfKfPfyJRdk",
+    "duration": "1h",
+    "moods": [
+      "motivation",
+      "neutral"
+    ],
+    "keywords": [
+      "study",
+      "focus",
+      "work",
+      "concentration"
+    ],
+    "why": "Steady background audio to reduce distractions.",
+    "cautions": "",
+    "source": "YouTube"
+  },
+  {
+    "id": "article-self-compassion-break",
+    "type": "article",
+    "title": "Self‑Compassion Break (3 phrases)",
+    "url": "https://self-compassion.org/exercise-2-self-compassion-break/",
+    "duration": "3m read",
+    "moods": [
+      "sadness",
+      "shame",
+      "neutral"
+    ],
+    "keywords": [
+      "self-criticism",
+      "harsh",
+      "kindness",
+      "compassion"
+    ],
+    "why": "A brief way to meet hard moments with warmth and perspective.",
+    "cautions": "",
+    "source": "self-compassion.org"
+  },
+  {
+    "id": "book-selfcompassion-neff",
+    "type": "book",
+    "title": "Self‑Compassion (Kristin Neff)",
+    "url": "https://self-compassion.org/",
+    "duration": "300 pages",
+    "moods": [
+      "sadness",
+      "anxiety"
+    ],
+    "keywords": [
+      "self compassion",
+      "sad",
+      "down",
+      "kindness",
+      "rumination"
+    ],
+    "why": "Introduces self‑compassion skills for tough emotions.",
+    "cautions": "",
+    "source": "Dr. Kristin Neff"
+  },
+  {
+    "id": "article-ggsc-3-good-things",
+    "type": "article",
+    "title": "Three Good Things (gratitude practice)",
+    "url": "https://ggia.berkeley.edu/practice/three-good-things",
+    "duration": "4m read",
+    "moods": [
+      "sadness",
+      "neutral",
+      "joy"
+    ],
+    "keywords": [
+      "gratitude",
+      "mood",
+      "journaling"
+    ],
+    "why": "Daily gratitude prompts can gently lift mood.",
+    "cautions": "",
+    "source": "Greater Good Science Center"
+  },
+  {
+    "id": "pdf-ggsc-random-kindness",
+    "type": "book",
+    "title": "Kindness Art for Kids",
+    "url": "https://ggia.berkeley.edu/practice/kindness_art_for_kids",
+    "duration": "2 pages",
+    "moods": [
+      "sadness",
+      "neutral",
+      "joy"
+    ],
+    "keywords": [
+      "kindness",
+      "connection",
+      "gratitude"
+    ],
+    "why": "Tiny social actions can increase connection and positive emotion.",
+    "cautions": "",
+    "source": "Greater Good Science Center"
+  },
+  {
+    "id": "book-tiny-habits-excerpt",
+    "type": "book",
+    "title": "Mini Habits",
+    "url": "https://minihabits.com/wp-content/uploads/2016/05/Mini-Habits-Free-Chapter.pdf",
+    "duration": "18 pages",
+    "moods": [
+      "motivation",
+      "neutral",
+      "sadness"
+    ],
+    "keywords": [
+      "motivation",
+      "stuck",
+      "procrastination",
+      "tiny steps"
+    ],
+    "why": "Shows how starting small can rebuild momentum and hope.",
+    "cautions": "",
+    "source": "minihabits.com"
+  },
+  {
+    "id": "book-atomic-habits",
+    "type": "book",
+    "title": "Atomic Habits (Overview)",
+    "url": "https://jamesclear.com/atomic-habits",
+    "duration": "320 pages",
+    "moods": [
+      "motivation",
+      "neutral"
+    ],
+    "keywords": [
+      "habits",
+      "procrastination",
+      "cue",
+      "routine",
+      "behavior"
+    ],
+    "why": "Popular framework for building small habits.",
+    "cautions": "",
+    "source": "James Clear"
+  },
+  {
+    "id": "article-mindtools-beat-procrastination",
+    "type": "article",
+    "title": "How to Beat Procrastination (MindTools)",
+    "url": "https://www.mindtools.com/a5plzk8/how-to-stop-procrastinating",
+    "duration": "7m read",
+    "moods": [
+      "motivation",
+      "neutral"
+    ],
+    "keywords": [
+      "procrastination",
+      "motivation",
+      "task",
+      "start"
+    ],
+    "why": "Practical steps to get moving on tasks.",
+    "cautions": "",
+    "source": "MindTools"
+  },
+  {
+    "id": "article-apa-anger-control",
+    "type": "article",
+    "title": "Controlling Anger — Before it Controls You",
+    "url": "https://www.apa.org/topics/anger/control",
+    "duration": "7m read",
+    "moods": [
+      "anger",
+      "stress"
+    ],
+    "keywords": [
+      "anger",
+      "rage",
+      "cool down",
+      "reactions"
+    ],
+    "why": "APA guidance on recognizing cues and cooling strategies.",
+    "cautions": "",
+    "source": "APA"
+  },
+  {
+    "id": "yt-desk-stretch-9m",
+    "type": "video",
+    "title": "Gentle desk stretch — neck & shoulders (9 min)",
+    "url": "https://www.youtube.com/watch?v=uruvYGRJ_QA",
+    "duration": "9m",
+    "moods": [
+      "stress",
+      "anger",
+      "neutral"
+    ],
+    "keywords": [
+      "tension",
+      "screen fatigue",
+      "work break",
+      "stretch"
+    ],
+    "why": "Short movement can release tension and refresh attention.",
+    "cautions": "Move within comfort; stop if painful.",
+    "source": "YouTube"
+  },
+  {
+    "id": "article-mindful-beginner",
+    "type": "article",
+    "title": "Beginner’s Guide to Mindfulness Meditation",
+    "url": "https://www.mindful.org/meditation/mindfulness-getting-started/",
+    "duration": "6m read",
+    "moods": [
+      "stress",
+      "neutral"
+    ],
+    "keywords": [
+      "meditation",
+      "mindfulness",
+      "beginner",
+      "how to"
+    ],
+    "why": "Gentle intro to mindfulness with simple steps.",
+    "cautions": "",
+    "source": "mindful.org"
+  },
+  {
+    "id": "article-harvard-relaxation-techniques",
+    "type": "article",
+    "title": "Relaxation techniques: Breath, body scan, and more",
+    "url": "https://www.health.harvard.edu/mind-and-mood/six-relaxation-techniques-to-reduce-stress",
+    "duration": "6m read",
+    "moods": [
+      "stress",
+      "anxiety",
+      "neutral"
+    ],
+    "keywords": [
+      "relaxation",
+      "breathing",
+      "body scan",
+      "mindfulness"
+    ],
+    "why": "Harvard overview of core techniques.",
+    "cautions": "",
+    "source": "Harvard Health"
+  },
+  {
+    "id": "article-ggsc-body-scan",
+    "type": "article",
+    "title": "10‑minute body scan (audio + guide)",
+    "url": "https://ggia.berkeley.edu/practice/body_scan_meditation",
+    "duration": "10m",
+    "moods": [
+      "stress",
+      "anxiety",
+      "neutral"
+    ],
+    "keywords": [
+      "body",
+      "scan",
+      "tension",
+      "awareness"
+    ],
+    "why": "Notice sensations to reduce tension and rumination.",
+    "cautions": "",
+    "source": "Greater Good Science Center"
+  },
+  {
+    "id": "pdf-thought-record",
+    "type": "article",
+    "title": "Thought record — simple worksheet (PDF)",
+    "url": "https://www.choosingtherapy.com/therapy-worksheets/thought-record/",
+    "duration": "1 page",
+    "moods": [
+      "sadness",
+      "anxiety",
+      "neutral"
+    ],
+    "keywords": [
+      "rumination",
+      "negative thoughts",
+      "cbt",
+      "worksheet",
+      "reframe"
+    ],
+    "why": "Writing can slow thoughts and create distance.",
+    "cautions": "Do it gently; stop if too intense.",
+    "source": "ChoosingTherapy"
+  },
+  {
+    "id": "article-cbt-hh",
+    "type": "article",
+    "title": "What is Cognitive Behavioral Therapy?",
+    "url": "https://www.health.harvard.edu/blog/what-is-cognitive-behavioral-therapy-202406053047",
+    "duration": "7m read",
+    "moods": [
+      "anxiety",
+      "sadness",
+      "neutral"
+    ],
+    "keywords": [
+      "cbt",
+      "thoughts",
+      "behavior",
+      "skills"
+    ],
+    "why": "Plain‑English overview of CBT principles.",
+    "cautions": "",
+    "source": "HarwardHealth"
+  },
+  {
+    "id": "article-gottman-soft-startup",
+    "type": "article",
+    "title": "Soft Start‑Up for Tough Talks (Gottman Institute)",
+    "url": "https://www.gottman.com/blog/softening-startup/",
+    "duration": "5m read",
+    "moods": [
+      "anger",
+      "relationship",
+      "sadness"
+    ],
+    "keywords": [
+      "relationship",
+      "communication",
+      "conflict",
+      "repair"
+    ],
+    "why": "A kinder way to open difficult conversations.",
+    "cautions": "",
+    "source": "Gottman Institute"
+  },
+  {
+    "id": "article-mentalhealthuk-loneliness",
+    "type": "article",
+    "title": "Loneliness: tips for coping",
+    "url": "https://www.verywellmind.com/how-to-cope-with-loneliness-3144939",
+    "duration": "6m read",
+    "moods": [
+      "sadness",
+      "lonely",
+      "neutral"
+    ],
+    "keywords": [
+      "lonely",
+      "isolation",
+      "connection",
+      "support"
+    ],
+    "why": "Simple ideas to reduce isolation and reach out.",
+    "cautions": "",
+    "source": "verywellMind"
+  },
+  {
+    "id": "article-mayo-exercise-depression",
+    "type": "article",
+    "title": "Depression and exercise: Endorphins and motivation",
+    "url": "https://www.mayoclinic.org/diseases-conditions/depression/in-depth/depression-and-exercise/art-20046495",
+    "duration": "5m read",
+    "moods": [
+      "sadness",
+      "neutral",
+      "stress"
+    ],
+    "keywords": [
+      "exercise",
+      "walk",
+      "mood",
+      "endorphins"
+    ],
+    "why": "How gentle activity supports mood.",
+    "cautions": "Consult a clinician for medical limitations.",
+    "source": "Mayo Clinic"
+  },
+  {
+    "id": "yt-walk-10m",
+    "type": "video",
+    "title": "10‑minute gentle indoor walk",
+    "url": "https://www.youtube.com/watch?v=KyCXFrE9LQ4",
+    "duration": "10m",
+    "moods": [
+      "neutral",
+      "sadness",
+      "stress"
+    ],
+    "keywords": [
+      "walk",
+      "movement",
+      "energy",
+      "reset"
+    ],
+    "why": "Light movement to reset attention and energy.",
+    "cautions": "Modify to your ability.",
+    "source": "YouTube"
+  },
+  {
+    "id": "article-mind-uk-panic",
+    "type": "article",
+    "title": "Self‑care for panic attacks",
+    "url": "https://www.healthline.com/health/anxiety/panic-attack-self-care-strategies",
+    "duration": "7m read",
+    "moods": [
+      "anxiety",
+      "panic"
+    ],
+    "keywords": [
+      "panic",
+      "attack",
+      "breathing",
+      "grounding",
+      "self care"
+    ],
+    "why": "Practical steps to ride out a panic surge.",
+    "cautions": "",
+    "source": "healthline"
+  },
+  {
+    "id": "article-ggsc-journal-gratitude",
+    "type": "article",
+    "title": "How to Keep a Gratitude Journal",
+    "url": "https://ggia.berkeley.edu/practice/gratitude_journal",
+    "duration": "4m read",
+    "moods": [
+      "sadness",
+      "neutral",
+      "joy"
+    ],
+    "keywords": [
+      "journal",
+      "gratitude",
+      "writing"
+    ],
+    "why": "Brief journaling to notice small good things.",
+    "cautions": "",
+    "source": "Greater Good Science Center"
+  },
+  {
+    "id": "article-psychcentral-self-soothe",
+    "type": "article",
+    "title": "Self‑soothing techniques for adults",
+    "url": "https://positivepsychology.com/self-soothing/",
+    "duration": "6m read",
+    "moods": [
+      "anxiety",
+      "sadness",
+      "distress"
+    ],
+    "keywords": [
+      "self soothe",
+      "comfort",
+      "coping",
+      "grounding"
+    ],
+    "why": "A menu of simple self‑soothing practices.",
+    "cautions": "",
+    "source": "PositivePsychology"
+  },
+  {
+    "id": "yt-square-breath-1m",
+    "type": "video",
+    "title": "Square breathing — 60 seconds",
+    "url": "https://www.youtube.com/watch?v=bF_1ZiFta-E",
+    "duration": "1m",
+    "moods": [
+      "anxiety",
+      "stress"
+    ],
+    "keywords": [
+      "breathing",
+      "square",
+      "1 minute",
+      "reset"
+    ],
+    "why": "A one‑minute reset you can do anywhere.",
+    "cautions": "",
+    "source": "YouTube"
+  },
+  {
+    "id": "yt-coherent-breath-6m",
+    "type": "video",
+    "title": "Coherent breathing (5‑6 breaths/min)",
+    "url": "https://www.youtube.com/watch?v=fjq7DeP2EWs",
+    "duration": "6m",
+    "moods": [
+      "anxiety",
+      "stress",
+      "sleep"
+    ],
+    "keywords": [
+      "coherent breathing",
+      "slow",
+      "calm"
+    ],
+    "why": "Slow rhythmic breathing can calm the nervous system.",
+    "cautions": "",
+    "source": "YouTube"
+  },
+  {
+    "id": "book-feeling-good-burns",
+    "type": "book",
+    "title": "Feeling Good (David D. Burns) — overview",
+    "url": "https://www.samuelthomasdavies.com/book-summaries/self-help/feeling-good/",
+    "duration": "5min",
+    "moods": [
+      "sadness",
+      "anxiety"
+    ],
+    "keywords": [
+      "cbt",
+      "mood",
+      "depression",
+      "thoughts"
+    ],
+    "why": "Classic CBT approaches to mood and anxiety.",
+    "cautions": "",
+    "source": "Author site"
+  },
+  {
+    "id": "book-mind-over-mood",
+    "type": "book",
+    "title": "Mind Over Mood (Greenberger & Padesky)",
+    "url": "https://www.guilford.com/books/Mind-Over-Mood/Dennis-Greenberger-Christine-Padesky/9781462520428",
+    "duration": "376 pages",
+    "moods": [
+      "sadness",
+      "anxiety",
+      "neutral"
+    ],
+    "keywords": [
+      "cbt",
+      "worksheets",
+      "skills",
+      "mood"
+    ],
+    "why": "Skills‑focused workbook with structured exercises.",
+    "cautions": "",
+    "source": "Guilford Press"
+  },
+  {
+    "id": "book-anxiety-phobia-bourne",
+    "type": "book",
+    "title": "The Anxiety & Phobia Workbook (Bourne)",
+    "url": "https://www.amazon.com/Anxiety-Phobia-Workbook-Edmund-Bourne/dp/1684034833",
+    "duration": "488 pages",
+    "moods": [
+      "anxiety",
+      "panic"
+    ],
+    "keywords": [
+      "panic",
+      "exposure",
+      "coping",
+      "skills"
+    ],
+    "why": "Comprehensive workbook for anxiety management.",
+    "cautions": "",
+    "source": "New Harbinger"
+  },
+  {
+    "id": "book-happiness-trap-harris",
+    "type": "book",
+    "title": "The Happiness Trap (Russ Harris)",
+    "url": "https://thehappinesstrap.com/",
+    "duration": "300 pages",
+    "moods": [
+      "anxiety",
+      "sadness",
+      "neutral"
+    ],
+    "keywords": [
+      "act",
+      "acceptance",
+      "values",
+      "defusion"
+    ],
+    "why": "ACT skills for getting unstuck from difficult thoughts.",
+    "cautions": "",
+    "source": "Official site"
+  },
+  {
+    "id": "yt-sleep-stretch-10m",
+    "type": "video",
+    "title": "10‑minute bedtime stretch",
+    "url": "https://www.youtube.com/watch?v=NW72Q7Z2SD0",
+    "duration": "10m",
+    "moods": [
+      "sleep",
+      "neutral"
+    ],
+    "keywords": [
+      "sleep",
+      "stretch",
+      "bedtime",
+      "relax"
+    ],
+    "why": "Gentle movement before bed can ease the body.",
+    "cautions": "Move within comfort.",
+    "source": "YouTube"
+  },
+  {
+    "id": "article-nhs-insomnia-selfhelp",
+    "type": "article",
+    "title": "Insomnia self‑help tips (NHS)",
+    "url": "https://www.nhs.uk/conditions/insomnia/",
+    "duration": "5m read",
+    "moods": [
+      "sleep",
+      "neutral"
+    ],
+    "keywords": [
+      "insomnia",
+      "sleep",
+      "tips"
+    ],
+    "why": "NHS advice for persistent trouble sleeping.",
+    "cautions": "",
+    "source": "NHS"
+  },
+  {
+    "id": "article-campaigntoendloneliness-tips",
+    "type": "article",
+    "title": "Practical tips for loneliness",
+    "url": "https://www.mind.org.uk/information-support/tips-for-everyday-living/loneliness/tips-to-manage-loneliness/",
+    "duration": "6m read",
+    "moods": [
+      "sadness",
+      "lonely"
+    ],
+    "keywords": [
+      "lonely",
+      "isolation",
+      "connect",
+      "reach out"
+    ],
+    "why": "Small actions to rebuild connection.",
+    "cautions": "",
+    "source":"minduk"
+  },
+  {
+    "id": "yt-2min-reset",
+    "type": "video",
+    "title": "Two‑minute reset: breathe, notice, release",
+    "url": "https://www.youtube.com/watch?v=vLhOGEnEedk",
+    "duration": "2m",
+    "moods": [
+      "neutral",
+      "anxiety",
+      "stress"
+    ],
+    "keywords": [
+      "reset",
+      "microbreak",
+      "breathe",
+      "notice"
+    ],
+    "why": "A tiny reset when you’re overwhelmed.",
+    "cautions": "",
+    "source": "YouTube"
+  },
+  {
+    "id": "article-nami-anxiety",
+    "type": "article",
+    "title": "Anxiety Disorders — overview",
+    "url": "https://www.nami.org/About-Mental-Illness/Mental-Health-Conditions/Anxiety-Disorders",
+    "duration": "6m read",
+    "moods": [
+      "anxiety",
+      "neutral"
+    ],
+    "keywords": [
+      "anxiety",
+      "symptoms",
+      "treatment",
+      "support"
+    ],
+    "why": "NAMI overview and support options.",
+    "cautions": "",
+    "source": "NAMI"
+  },
+  {
+    "id": "article-who-stress-manage",
+    "type": "article",
+    "title": "Doing What Matters in Times of Stress (WHO)",
+    "url": "https://www.who.int/publications/i/item/9789240003927",
+    "duration": "Booklet (free)",
+    "moods": [
+      "stress",
+      "anxiety",
+      "distress"
+    ],
+    "keywords": [
+      "stress",
+      "grounding",
+      "values",
+      "skills"
+    ],
+    "why": "Free WHO illustrated guide with practices.",
+    "cautions": "",
+    "source": "WHO"
+  },
+  {
+    "id": "yt-anger-cooldown-5m",
+    "type": "video",
+    "title": "Cool down anger — 5 minute guided",
+    "url": "https://www.youtube.com/watch?v=MDqsn2oiYig",
+    "duration": "5m",
+    "moods": [
+      "anger",
+      "stress"
+    ],
+    "keywords": [
+      "anger",
+      "cool down",
+      "breathing",
+      "relax"
+    ],
+    "why": "Brief breathing and noticing to settle intense anger.",
+    "cautions": "",
+    "source": "YouTube"
+  },
+  {
+    "id": "article-mind-uk-grounding",
+    "type": "article",
+    "title": "Grounding techniques you can try now",
+    "url": "https://blog.calm.com/blog/grounding-techniques",
+    "duration": "6m read",
+    "moods": [
+      "anxiety",
+      "distress"
+    ],
+    "keywords": [
+      "grounding",
+      "5 senses",
+      "techniques"
+    ],
+    "why": "A menu of grounding options from Mind (UK).",
+    "cautions": "",
+    "source": "Calm"
+  },
+  {
+    "id": "article-ggsc-values-clarify",
+    "type": "article",
+    "title": "Clarifying your values (worksheet)",
+    "url": "https://www.therapistaid.com/therapy-worksheet/values-clarification",
+    "duration": "10m",
+    "moods": [
+      "neutral",
+      "sadness",
+      "anxiety"
+    ],
+    "keywords": [
+      "values",
+      "purpose",
+      "act",
+      "meaning"
+    ],
+    "why": "Values exercises can orient next small steps.",
+    "cautions": "",
+    "source": "therapistAid"
+  },
+  {
+    "id": "yt-visual-focus-2m",
+    "type": "video",
+    "title": "2‑minute visual focus reset",
+    "url": "https://www.youtube.com/watch?v=QtE00VP4W3Y",
+    "duration": "2m",
+    "moods": [
+      "anxiety",
+      "stress",
+      "neutral"
+    ],
+    "keywords": [
+      "focus",
+      "visual",
+      "reset",
+      "eyes"
+    ],
+    "why": "Shifting visual focus can reduce cognitive load.",
+    "cautions": "",
+    "source": "YouTube"
+  },
+  {
+    "id": "article-mindful-walking",
+    "type": "article",
+    "title": "How to practice mindful walking",
+    "url": "https://www.mindful.org/daily-mindful-walking-practice/",
+    "duration": "5m read",
+    "moods": [
+      "stress",
+      "sadness",
+      "neutral"
+    ],
+    "keywords": [
+      "walking",
+      "mindful",
+      "movement",
+      "outside"
+    ],
+    "why": "Combine gentle movement with awareness.",
+    "cautions": "",
+    "source": "mindful.org"
+  },
+  {
+    "id": "article-oxford-study-tips",
+    "type": "article",
+    "title": "Study tips to reduce stress (Oxford)",
+    "url": "https://oxfordlearning.com/study-tips-for-exams-study-smarter-not-harder/",
+    "duration": "5m read",
+    "moods": [
+      "anxiety",
+      "motivation"
+    ],
+    "keywords": [
+      "study",
+      "exam",
+      "stress",
+      "time"
+    ],
+    "why": "University-backed tips for calmer studying.",
+    "cautions": "",
+    "source": "University of Oxford"
+  },
+
+  {
+  "id": "sri_lanka_crisis",
+  "type": "crisis",
+  "name": "Sri Lanka National Mental Health Helpline (1926)",
+  "url": "https://nimh.health.gov.lk/en/",
+  "country": "LK",
+  "verified": true
+}
+
+]
