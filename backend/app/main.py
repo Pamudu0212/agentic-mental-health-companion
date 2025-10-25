@@ -1,61 +1,126 @@
 # app/main.py
 from __future__ import annotations
 from dotenv import load_dotenv
+
 load_dotenv()
 
 import os
 import json
 import asyncio
 import traceback
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 import httpx
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse, JSONResponse
+from starlette.middleware.sessions import SessionMiddleware
 from sqlalchemy import desc
 from sqlalchemy.orm import Session, sessionmaker
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from .db import Base, engine, get_db
-from .models import Interaction, Strategy   # <-- import Strategy so table is created
+from .models import Interaction, Strategy  # Strategy import ensures table creation
 from .schemas import ChatRequest, ChatResponse
 from .orchestrator import run_pipeline
 from .agents.mood import _pipe, detect_mood
 from .agents.safety import detect_crisis
 from .prompts import ENCOURAGEMENT_SYSTEM, CRISIS_MESSAGE_SELF, CRISIS_MESSAGE_OTHERS
 
-# Coping strategy suggestors
+# Coping strategy helpers
 from .agents.strategy import suggest_strategy, suggest_resources, Crisis
 
+# Google OAuth router
+from .auth import router as auth_router
+
+
 # -----------------------------------------------------------------------------
-#FastAPI
+# FastAPI app
 # -----------------------------------------------------------------------------
 app = FastAPI(title="Agentic Mental Health Companion")
 
-# CORS (adjust as you need)
+# --- CORS ---
+FRONTEND_ORIGIN = os.getenv("FRONTEND_ORIGIN", "http://127.0.0.1:5175").rstrip("/")
+extra_origins = [
+    "http://localhost:5175",
+    "http://127.0.0.1:5175",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:5178",
+    "http://127.0.0.1:5178",
+]
+allow_origins = list({FRONTEND_ORIGIN, *extra_origins})
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5175",
-        "http://127.0.0.1:5175",
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:5178",
-        "http://127.0.0.1:5178",
-    ],
+    allow_origins=allow_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Ensure tables exist (requires Strategy to be imported above)
+# --- Session cookies (for Google login) ---
+SECRET_KEY = os.getenv("SECRET_KEY", "dev-change-me")
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=SECRET_KEY,
+    same_site="lax",   # good for dev; in prod use "none" + HTTPS
+    https_only=False,  # set True in prod with HTTPS
+)
+
+# Ensure DB tables exist (requires Strategy import above)
 Base.metadata.create_all(bind=engine)
 
+# Mount /api/auth/* routes (google, me, logout, callback)
+app.include_router(auth_router)
+
+
 # -----------------------------------------------------------------------------
-#Startup: warm model + seed strategies if empty
+# User Profile Routes
+# -----------------------------------------------------------------------------
+class ProfileIn(BaseModel):
+    name: Optional[str] = Field(None, max_length=120)
+    timezone: Optional[str] = Field(None, max_length=64)
+
+@app.get("/api/user/profile")
+def get_profile(request: Request, db: Session = Depends(get_db)):
+    ses = request.session.get("user")
+    if not ses:
+        return JSONResponse({"error": "not_logged_in"}, status_code=401)
+    from .models import User
+    u = db.query(User).filter(User.sub == ses["sub"]).first()
+    return {
+        "email": u.email,
+        "name": u.name,
+        "picture": u.picture,
+        "timezone": u.timezone,
+        "profile_complete": bool(u.profile_complete),
+    }
+
+@app.post("/api/user/profile")
+def update_profile(body: ProfileIn, request: Request, db: Session = Depends(get_db)):
+    ses = request.session.get("user")
+    if not ses:
+        return JSONResponse({"error": "not_logged_in"}, status_code=401)
+    from .models import User
+    u = db.query(User).filter(User.sub == ses["sub"]).first()
+    if not u:
+        return JSONResponse({"error": "user_missing"}, status_code=400)
+    if body.name is not None:
+        u.name = body.name.strip()
+    if body.timezone is not None:
+        u.timezone = body.timezone.strip() or "UTC"
+    # mark complete once they submit at least once
+    u.profile_complete = True
+    db.commit()
+    return {"ok": True, "profile_complete": True}
+
+
+# -----------------------------------------------------------------------------
+# Startup: warm mood model + seed strategies if empty
 # -----------------------------------------------------------------------------
 SessionLocal = sessionmaker(bind=engine)
+
 
 def _seed_strategies_if_empty() -> None:
     """Populate mh_strategies with a few vetted starter rows if it's empty."""
@@ -118,6 +183,7 @@ def _seed_strategies_if_empty() -> None:
     except Exception as e:
         print("⚠️ Seeding mh_strategies skipped:", e)
 
+
 @app.on_event("startup")
 async def warm_models():
     # Warm emotion model (cached by lru_cache)
@@ -128,8 +194,9 @@ async def warm_models():
     except Exception as e:
         print("⚠️ Could not warm mood model:", e)
 
-    # Seed DB-backed strategies once (safe no-op if not empty)
+    # Seed DB-backed strategies once (no-op if not empty)
     _seed_strategies_if_empty()
+
 
 # -----------------------------------------------------------------------------
 # Helpers
@@ -153,9 +220,11 @@ def fetch_history_as_messages(db: Session, user_id: str, limit: int = 8) -> List
             messages.append({"role": "assistant", "content": r.encouragement})
     return messages
 
+
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+
 
 async def _openai_stream(messages: List[Dict[str, str]]):
     """Stream plain-text tokens from OpenAI Chat Completions."""
@@ -164,7 +233,12 @@ async def _openai_stream(messages: List[Dict[str, str]]):
             "POST",
             f"{OPENAI_BASE_URL}/chat/completions",
             headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
-            json={"model": OPENAI_MODEL, "stream": True, "messages": messages, "temperature": 0.7},
+            json={
+                "model": OPENAI_MODEL,
+                "stream": True,
+                "messages": messages,
+                "temperature": 0.7,
+            },
         ) as r:
             r.raise_for_status()
             async for line in r.aiter_lines():
@@ -180,21 +254,28 @@ async def _openai_stream(messages: List[Dict[str, str]]):
                         yield delta
                         await asyncio.sleep(0)
                 except Exception:
+                    # swallow malformed keepalives/etc
                     continue
 
+
 # -----------------------------------------------------------------------------
-#Routes
+# Routes
 # -----------------------------------------------------------------------------
 @app.get("/health")
 async def health():
     return {"status": "ok"}
 
+
 async def _handle_chat(body: ChatRequest, db: Session) -> ChatResponse:
     user_id = body.user_id or "anon"
     history = fetch_history_as_messages(db, user_id, limit=8)
 
-    # Run the agent pipeline (handles crisis internally too)
-    result = await run_pipeline(body.user_text, history=history)
+    # Run the agent pipeline with session_id
+    result = await run_pipeline(
+        user_text=body.user_text,
+        history=history,
+        session_id=body.session_id  # Add session_id
+    )
 
     # Persist minimal interaction record
     record = Interaction(
@@ -210,9 +291,11 @@ async def _handle_chat(body: ChatRequest, db: Session) -> ChatResponse:
 
     return ChatResponse(**result)
 
+
 @app.post("/chat", response_model=ChatResponse)
 async def chat(body: ChatRequest, db: Session = Depends(get_db)):
     return await _handle_chat(body, db)
+
 
 @app.post("/api/chat")
 async def chat_api(body: ChatRequest, db: Session = Depends(get_db)):
@@ -224,6 +307,7 @@ async def chat_api(body: ChatRequest, db: Session = Depends(get_db)):
             status_code=500,
             content={"error": "chat_failed", "message": str(e), "type": e.__class__.__name__},
         )
+
 
 @app.post("/chat/stream")
 async def chat_stream(body: ChatRequest, db: Session = Depends(get_db)):
@@ -238,14 +322,16 @@ async def chat_stream(body: ChatRequest, db: Session = Depends(get_db)):
             yield crisis_message
 
         # persist crisis response
-        db.add(Interaction(
-            user_id=user_id,
-            user_text=body.user_text,
-            detected_mood="unknown",
-            chosen_strategy="",
-            encouragement=crisis_message,
-            safety_flag="true",
-        ))
+        db.add(
+            Interaction(
+                user_id=user_id,
+                user_text=body.user_text,
+                detected_mood="unknown",
+                chosen_strategy="",
+                encouragement=crisis_message,
+                safety_flag="true",
+            )
+        )
         db.commit()
         return StreamingResponse(crisis_gen(), media_type="text/plain")
 
@@ -262,20 +348,23 @@ async def chat_stream(body: ChatRequest, db: Session = Depends(get_db)):
             accumulated["text"] += chunk
             yield chunk
         # after stream completes, store one interaction row
-        db.add(Interaction(
-            user_id=user_id,
-            user_text=body.user_text,
-            detected_mood=detect_mood(body.user_text),
-            chosen_strategy="",
-            encouragement=accumulated["text"],
-            safety_flag="false",
-        ))
+        db.add(
+            Interaction(
+                user_id=user_id,
+                user_text=body.user_text,
+                detected_mood=detect_mood(body.user_text),
+                chosen_strategy="",
+                encouragement=accumulated["text"],
+                safety_flag="false",
+            )
+        )
         db.commit()
 
     return StreamingResponse(generator(), media_type="text/plain")
 
+
 # -----------------------------------------------------------------------------
-#Coping strategy endpoints (API + aliases)
+# Coping strategy endpoints (API + aliases)
 # -----------------------------------------------------------------------------
 class StrategyIn(BaseModel):
     mood: str = "neutral"
@@ -283,6 +372,8 @@ class StrategyIn(BaseModel):
     crisis: Crisis = "none"
     history: list[dict] | None = None
     exclude_ids: list[str] | None = None
+    session_id: str = "default"  # Add session_id for consistency
+
 
 @app.post("/api/suggest/strategy")
 async def api_suggest_strategy(inp: StrategyIn):
@@ -293,6 +384,7 @@ async def api_suggest_strategy(inp: StrategyIn):
         history=inp.history,
     )
     return {"strategy": step}
+
 
 @app.post("/api/suggest/resources")
 async def api_suggest_resources(inp: StrategyIn):
@@ -305,10 +397,12 @@ async def api_suggest_resources(inp: StrategyIn):
     )
     return json.loads(opts) if opts else {"options": [], "needs_clinician": False}
 
+
 # Aliases without /api prefix
 @app.post("/suggest/strategy")
 async def alias_suggest_strategy(inp: StrategyIn):
     return await api_suggest_strategy(inp)
+
 
 @app.post("/suggest/resources")
 async def alias_suggest_resources(inp: StrategyIn):

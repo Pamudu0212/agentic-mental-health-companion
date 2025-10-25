@@ -1,7 +1,8 @@
 // src/App.jsx
 import { useEffect, useMemo, useRef, useState } from "react";
-import { sendChat, fetchResources } from "./api";
+import { sendChat, fetchResources, getCurrentSessionId } from "./api";
 import CrisisCta from "./components/CrisisCta.tsx";
+import UserProfile from "./components/UserProfile.jsx";
 import MoodDial from "./components/MoodDial.jsx";
 
 // ---------- utils ----------
@@ -154,7 +155,7 @@ function Insights({ latest, resources, loadingResources, needsClinician, crisisL
             {needsClinician && crisisLink ? (
               <div className="space-y-2">
                 <p className="text-sm text-slate-700">
-                  If you’re in immediate danger or feel unable to stay safe, please use the official support below.
+                  If you're in immediate danger or feel unable to stay safe, please use the official support below.
                 </p>
                 <CrisisCta href={crisisLink} />
               </div>
@@ -228,7 +229,7 @@ export default function App() {
   const [showJump, setShowJump] = useState(false);
 
   const updateStickiness = () => {
-    const el = logRef.current; // <-- fixed
+    const el = logRef.current;
     if (!el) return;
     const threshold = 80;
     const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < threshold;
@@ -252,6 +253,14 @@ export default function App() {
   useEffect(() => {
     if (autoStick) scrollToBottom("smooth");
   }, [msgs, loading]);
+
+  const handleNewSession = (newSessionId) => {
+    setMsgs([]);
+    setLatest(null);
+    setResources([]);
+    // Optional: Show a message about new session
+    console.log("New session started:", newSessionId);
+  };
 
   async function onSend(e) {
     e.preventDefault();
@@ -283,7 +292,7 @@ export default function App() {
         strategy_source: res.strategy_source || null,
         strategy_why: res.strategy_why || "",
         strategy_label: res.strategy_label || "",
-        mood_confidence: res.mood_confidence, // safe if backend doesn't send it
+        mood_confidence: res.mood_confidence,
         safety: res.safety ?? {
           level: crisisDetected ? "crisis_self" : "safe",
           reason: crisisDetected ? "Crisis mode" : "No crisis indicators found",
@@ -317,13 +326,16 @@ export default function App() {
   return (
     <div className="min-h-screen w-full overflow-x-hidden bg-gradient-to-br from-emerald-50 via-teal-50 to-sky-50">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 py-6">
-        <header className="mb-4">
-          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-slate-800">
-            Agentic Mental Health Companion
-          </h1>
-          <p className="text-sm text-slate-600 mt-1">
-            This isn’t a medical service. If you’re in danger, contact local emergency services.
-          </p>
+        <header className="mb-4 flex justify-between items-center">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-slate-800">
+              Agentic Mental Health Companion
+            </h1>
+            <p className="text-sm text-slate-600 mt-1">
+              This isn't a medical service. If you're in danger, contact local emergency services.
+            </p>
+          </div>
+          <UserProfile onNewSession={handleNewSession} />
         </header>
 
         <div className="grid min-h-[calc(100vh-7.5rem)] grid-cols-1 gap-6 lg:grid-cols-3">
@@ -337,7 +349,7 @@ export default function App() {
             >
               {msgs.length === 0 && !loading && (
                 <div className="mx-auto max-w-prose text-center text-slate-600">
-                  Welcome. Take a breath. When you’re ready, share how you’re feeling today.
+                  Welcome. Take a breath. When you're ready, share how you're feeling today.
                 </div>
               )}
               {msgs.map((m, i) => (
@@ -378,7 +390,8 @@ export default function App() {
 
             <div className="text-[11px] text-slate-500 px-6 pb-3">
               API via Vite proxy: <code>/api</code> → <code>http://127.0.0.1:8000</code> · user:{" "}
-              <code className="select-all">{userId}</code>
+              <code className="select-all">{userId}</code> · session:{" "}
+              <code className="select-all">{getCurrentSessionId()}</code>
             </div>
           </section>
 

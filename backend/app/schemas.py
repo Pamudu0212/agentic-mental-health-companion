@@ -15,6 +15,7 @@ class StrategySource(BaseModel):
 class ChatRequest(BaseModel):
     user_text: str = Field(..., min_length=1, max_length=4000)
     user_id: Optional[str] = None  # frontend may omit; backend defaults to "anon"
+    session_id: str = "default"  # Add this field for conversational memory
 
 class ChatResponse(BaseModel):
     mood: str
