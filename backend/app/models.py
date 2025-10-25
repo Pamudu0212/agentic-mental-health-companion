@@ -1,7 +1,9 @@
 # app/models.py
-from sqlalchemy import Column, Integer, String, DateTime, Text
+from sqlalchemy import Column, Integer, String, DateTime, Text, Boolean
 from sqlalchemy.sql import func
+
 from .db import Base
+
 
 class Interaction(Base):
     __tablename__ = "interactions"
@@ -15,7 +17,8 @@ class Interaction(Base):
     safety_flag = Column(String(8))  # "true"/"false"
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-# ---- NEW: IR-backed coping strategy records ----
+
+# ---- IR-backed coping strategy records ----
 class Strategy(Base):
     __tablename__ = "mh_strategies"
 
@@ -38,3 +41,17 @@ class Strategy(Base):
     source_url = Column(String, default="")               # canonical page for auditing
     last_reviewed_at = Column(String, default="")         # ISO date string
     reviewer = Column(String, default="")                 # internal approver
+
+
+# ---- Users (Google profile) ----
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    sub = Column(String(128), unique=True, index=True)      # Google OIDC subject
+    email = Column(String(255), unique=True, index=True)
+    name = Column(String(120))
+    picture = Column(String(512))
+    timezone = Column(String(64), default="UTC")
+    profile_complete = Column(Boolean, default=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())

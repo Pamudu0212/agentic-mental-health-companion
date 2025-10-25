@@ -8,7 +8,7 @@ from typing import List, Dict, Optional, Literal
 # Agents
 from .agents.safety import detect_crisis, detect_crisis_with_moderation
 from .agents.mood import detect_mood
-from .agents.encouragement import encourage, converse
+from .agents.encouragement import encourage, converse, encourage_with_memory, converse_with_memory
 from .agents.coach_agent import coach_draft  # optional, kept
 from .agents.critic_agent import critic_fix
 from .agents.skillcards import best_strategy_entry  # DB-backed retrieval w/ why + source
@@ -17,15 +17,16 @@ from .agents.skillcards import best_strategy_entry  # DB-backed retrieval w/ why
 Crisis = Literal["none", "self_harm", "other_harm"]
 
 CRISIS_MESSAGE = (
-    "I’m really concerned about safety here. I can’t help with anything that could put "
+    "I'm really concerned about safety here. I can't help with anything that could put "
     "you or others at risk. Please contact local emergency services or a crisis hotline right now. "
-    "If you can, reach out to someone you trust so you’re not alone."
+    "If you can, reach out to someone you trust so you're not alone."
 )
 
 @dataclass
 class TurnState:
     user_text: str
     history: Optional[List[Dict[str, str]]]  # [{role, content}]
+    session_id: str = ""  # Added for memory tracking
     crisis: Crisis = "none"
     mood: str = "neutral"        # anger|joy|optimism|sadness|neutral|unknown
     strategy: str = ""           # the step text (for backward-compat)
@@ -130,8 +131,9 @@ def _should_offer_step(user_text: str, mood: str) -> bool:
 async def run_pipeline(
     user_text: str,
     history: Optional[List[Dict[str, str]]] = None,
+    session_id: str = "",  # Added for memory tracking
 ):
-    state = TurnState(user_text=user_text, history=history or [])
+    state = TurnState(user_text=user_text, history=history or [], session_id=session_id)
 
     # These enrich the response for the UI:
     strategy_source: Optional[Dict[str, str]] = None
@@ -176,23 +178,25 @@ async def run_pipeline(
             draft_msg = (
                 "Based on what you shared, a tiny next step you could try is:\n\n"
                 f"- {state.strategy}\n\n"
-                "If that doesn’t fit, tell me what feels hard and we’ll adjust it together."
+                "If that doesn't fit, tell me what feels hard and we'll adjust it together."
             )
         else:
-            draft_msg = await converse(
+            # Use memory-enhanced conversation when no strategy found
+            draft_msg = await converse_with_memory(
                 user_text=state.user_text,
                 mood=state.mood,
-                history=state.history,
+                session_id=state.session_id,
                 crisis=state.crisis,
             )
             state.strategy = ""
             state.advice_given = False
             strategy_source = None
     else:
-        draft_msg = await converse(
+        # Use memory-enhanced conversation for non-advice responses
+        draft_msg = await converse_with_memory(
             user_text=state.user_text,
             mood=state.mood,
-            history=state.history,
+            session_id=state.session_id,
             crisis=state.crisis,
         )
         state.strategy = ""
@@ -215,17 +219,21 @@ async def run_pipeline(
             "strategy_label": strategy_label,
         }
 
-    # 4) Encouragement
-    state.encouragement = await encourage(
-        user_text=state.user_text,
-        mood=state.mood,
-        strategy=state.strategy,
-        crisis=state.crisis,
-        history=state.history,
-    )
+    # 4) Encouragement - Use memory-enhanced version when strategy is provided
+    if state.advice_given and state.strategy:
+        state.encouragement = await encourage_with_memory(
+            user_text=state.user_text,
+            mood=state.mood,
+            strategy=state.strategy,
+            session_id=state.session_id,
+            crisis=state.crisis,
+        )
+    else:
+        # For conversation-only responses, we already have draft_msg from memory-enhanced converse
+        state.encouragement = draft_msg
 
     # 5) Critic pass
-    crit = await critic_fix(draft_msg, state.strategy if state.advice_given else "")
+    crit = await critic_fix(state.encouragement, state.strategy if state.advice_given else "")
     if not crit.get("ok"):
         state.crisis = "self_harm"
         state = validate_and_repair(state)

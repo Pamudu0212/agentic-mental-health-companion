@@ -1,11 +1,22 @@
 // src/api.js
 
+// Session management
+let sessionId = localStorage.getItem('chat_session_id');
+if (!sessionId) {
+    sessionId = 'session_' + Math.random().toString(36).substr(2, 9);
+    localStorage.setItem('chat_session_id', sessionId);
+}
+
 // Chat with the main pipeline
 export async function sendChat(message, userId = "anon") {
   const r = await fetch("/api/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ user_text: message, user_id: userId }),
+    body: JSON.stringify({
+        user_text: message,
+        user_id: userId,
+        session_id: sessionId // Add session_id
+    }),
   });
   if (!r.ok) throw new Error(`Request failed: ${r.status} ${await r.text()}`);
   return r.json(); // { reply: "...", ... }
@@ -16,7 +27,13 @@ export async function fetchStrategy({ user_text, mood = "neutral", crisis = "non
   const r = await fetch("/api/suggest/strategy", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ user_text, mood, crisis, history }),
+    body: JSON.stringify({
+        user_text,
+        mood,
+        crisis,
+        history,
+        session_id: sessionId // Add session_id
+    }),
   });
   if (!r.ok) throw new Error(`Strategy failed: ${r.status} ${await r.text()}`);
   return r.json(); // { strategy: "..." }
@@ -33,7 +50,14 @@ export async function fetchResources({
   const r = await fetch("/api/suggest/resources", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ user_text, mood, crisis, history, exclude_ids }),
+    body: JSON.stringify({
+        user_text,
+        mood,
+        crisis,
+        history,
+        exclude_ids,
+        session_id: sessionId // Add session_id
+    }),
   });
   if (!r.ok) throw new Error(`Resources failed: ${r.status} ${await r.text()}`);
   return r.json();
@@ -47,4 +71,17 @@ export async function fetchResources({
       crisis_link?: string   // <-- present only when crisis detected
     }
   */
+}
+
+// Start a new conversation session
+export function startNewSession() {
+    const newSessionId = 'session_' + Math.random().toString(36).substr(2, 9);
+    localStorage.setItem('chat_session_id', newSessionId);
+    sessionId = newSessionId;
+    return newSessionId;
+}
+
+// Get current session ID
+export function getCurrentSessionId() {
+    return sessionId;
 }
